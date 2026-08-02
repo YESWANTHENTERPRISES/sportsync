@@ -1,0 +1,6 @@
+{
+  "name": "SportSync Alexandria",
+  "description": "Enterprise multi-tenant digital rights management and content delivery platform for sports broadcasting organizations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
