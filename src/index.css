@@ -1,17 +1,291 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @layer base {
   body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: #090d16;
-    color: #f8fafc;
+    background-color: #A8C0E0 !important;
+    background-image: linear-gradient(180deg, #A8C0E0 0%, #D4E3F5 45%, #F4F7FC 100%) !important;
+    background-attachment: fixed !important;
+    color: #1e293b !important;
     overflow-x: hidden;
   }
 
-  h1, h2, h3, h4, h5, h6, .font-heading {
-    font-family: 'Rajdhani', 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', 'Georgia', serif;
+    color: #0B224E !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em;
   }
+
+  .font-heading {
+    font-family: 'Playfair Display', 'Georgia', serif;
+  }
+}
+
+/* Redefining Tailwind 4 CSS properties for Mandelo luxury navy theme */
+@theme {
+  --color-slate-950: #f1f5f9;
+  --color-slate-900: #ffffff;
+  --color-slate-850: #f8fafc;
+  --color-slate-800: rgba(168, 192, 224, 0.25);
+  --color-slate-700: #334155;
+  --color-slate-650: #475569;
+  --color-slate-500: #64748b;
+  --color-slate-450: #64748b;
+  --color-slate-400: #475569;
+  --color-slate-350: #1e293b;
+  --color-slate-300: #0B224E;
+  --color-slate-200: #0B224E;
+  
+  --color-blue-600: #0B224E; /* Deep luxury navy for main buttons */
+  --color-blue-500: #1a3b75;
+  --color-blue-400: #0B224E;
+  --color-indigo-600: #0B224E;
+  --color-indigo-500: #0B224E;
+  --color-indigo-400: #0B224E;
+}
+
+/* Global Overrides for Luxury Sky Style */
+
+/* General background blocks (Stark white cards, round corners, soft blurred shadows) */
+.bg-\[\#0A0F1E\] {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(168, 192, 224, 0.2) !important;
+  box-shadow: 0 10px 30px -5px rgba(11, 34, 78, 0.06) !important;
+  border-radius: 1rem !important;
+}
+.bg-\[\#0A0F1E\]\/95 {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(168, 192, 224, 0.2) !important;
+}
+.bg-\[\#0A0F1E\]\/50 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid rgba(168, 192, 224, 0.2) !important;
+}
+.bg-\[\#1E2640\] {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(168, 192, 224, 0.25) !important;
+  box-shadow: 0 10px 30px -5px rgba(11, 34, 78, 0.06) !important;
+  border-radius: 1rem !important;
+}
+.bg-\[\#1E2640\]\/55 {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(168, 192, 224, 0.2) !important;
+  box-shadow: 0 4px 20px rgba(11, 34, 78, 0.03) !important;
+}
+
+/* Sidebar styling overrides */
+aside {
+  background-color: #ffffff !important;
+  border-right: 1px solid rgba(168, 192, 224, 0.25) !important;
+}
+aside * {
+  color: #475569;
+}
+aside .text-slate-500 {
+  color: #64748b !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em;
+}
+
+/* Active sidebar tab (solid luxury navy background, white text, pill corners) */
+aside button.bg-slate-800 {
+  background-color: #0B224E !important;
+  border: 1px solid #0B224E !important;
+  color: #ffffff !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 4px 12px rgba(11, 34, 78, 0.15) !important;
+  font-weight: 500 !important;
+}
+aside button.bg-slate-800 * {
+  color: #ffffff !important;
+}
+aside button.bg-slate-800 .bg-blue-500\/20 {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+/* Inactive sidebar buttons */
+aside button .bg-slate-950 {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  border: 1px solid rgba(168, 192, 224, 0.2) !important;
+}
+aside button:hover {
+  background-color: #f8fafc !important;
+}
+aside button:hover * {
+  color: #0B224E !important;
+}
+
+/* Header/Navbar Override to stark white with thin sky-blue border */
+header.h-16 {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid rgba(168, 192, 224, 0.25) !important;
+  color: #0B224E !important;
+}
+header.h-16 input {
+  background-color: #ffffff !important;
+  color: #0B224E !important;
+  border: 1px solid rgba(168, 192, 224, 0.3) !important;
+  border-radius: 9999px !important;
+}
+header.h-16 .absolute {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(168, 192, 224, 0.3) !important;
+  box-shadow: 0 8px 24px rgba(11, 34, 78, 0.08) !important;
+}
+header.h-16 .absolute * {
+  color: #0B224E !important;
+}
+header.h-16 .absolute span.text-blue-400 {
+  color: #1a3b75 !important;
+}
+
+/* Text elements */
+.text-white {
+  color: #0B224E !important;
+}
+/* Ensure white text is white inside primary buttons */
+.bg-blue-600, 
+.bg-blue-600 *,
+button.bg-blue-600,
+button.bg-blue-600 *,
+.bg-blue-500,
+.bg-blue-500 * {
+  color: #ffffff !important;
+}
+.text-slate-400 {
+  color: #475569 !important;
+}
+.text-slate-450 {
+  color: #475569 !important;
+}
+.text-slate-350 {
+  color: #1e293b !important;
+}
+.text-slate-300 {
+  color: #0B224E !important;
+}
+.text-slate-200 {
+  color: #0B224E !important;
+}
+.text-blue-400 {
+  color: #0B224E !important;
+}
+.text-blue-500 {
+  color: #1a3b75 !important;
+}
+
+/* Primary navy buttons with hover transitions */
+.bg-blue-600 {
+  background-color: #0B224E !important;
+  border: 1px solid #0B224E !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(11, 34, 78, 0.1) !important;
+  border-radius: 9999px !important; /* Capsule style */
+  font-weight: 500 !important;
+  transition: all 0.15s ease-in-out !important;
+}
+.bg-blue-600:hover {
+  background-color: #1a3b75 !important;
+  border-color: #1a3b75 !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(11, 34, 78, 0.15) !important;
+}
+.bg-blue-600 * {
+  color: #ffffff !important;
+}
+
+/* Secondary white/sky-blue buttons */
+.bg-slate-800 {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(168, 192, 224, 0.3) !important;
+  color: #334155 !important;
+  border-radius: 9999px !important;
+}
+.bg-slate-800:hover {
+  background-color: #f8fafc !important;
+  border-color: rgba(168, 192, 224, 0.5) !important;
+}
+
+.border-slate-800 {
+  border-color: rgba(168, 192, 224, 0.25) !important;
+}
+.border-slate-850 {
+  border-color: rgba(168, 192, 224, 0.2) !important;
+}
+.border-slate-900 {
+  border-color: rgba(168, 192, 224, 0.25) !important;
+}
+
+/* Input elements */
+input, select, textarea {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(168, 192, 224, 0.3) !important;
+  color: #0b224e !important;
+  border-radius: 0.5rem !important;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: #0B224E !important;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(11, 34, 78, 0.1) !important;
+}
+
+/* Calendar elements (Grid layout) */
+.bg-slate-950 {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(168, 192, 224, 0.25) !important;
+  color: #0B224E !important;
+}
+.bg-slate-900 {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(168, 192, 224, 0.25) !important;
+  color: #0B224E !important;
+}
+
+/* Status pills */
+.bg-emerald-500\/10 {
+  background-color: rgba(11, 34, 78, 0.04) !important;
+  border: 1px solid rgba(11, 34, 78, 0.15) !important;
+  color: #0B224E !important;
+  font-weight: 500 !important;
+}
+.bg-amber-500\/10 {
+  background-color: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #475569 !important;
+  font-weight: 500 !important;
+}
+.bg-rose-500\/10 {
+  background-color: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #64748b !important;
+  font-weight: 500 !important;
+}
+
+/* Brand Logo (Clean shadow) */
+img[src="/logo.png"] {
+  filter: drop-shadow(1px 1px 2px rgba(11, 34, 78, 0.1)) !important;
+}
+
+/* Charts / SVGs */
+polyline[stroke="#3b82f6"] {
+  stroke: #0B224E !important;
+  stroke-width: 2px !important;
+}
+circle[fill="#3b82f6"] {
+  fill: #ffffff !important;
+  stroke: #0B224E !important;
+  stroke-width: 1.5px !important;
+  r: 3.5 !important;
+}
+line[stroke="#1E2640"] {
+  stroke: rgba(168, 192, 224, 0.3) !important;
+  stroke-width: 0.5px !important;
 }
 
 /* Custom Scrollbars */
@@ -20,33 +294,21 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #f8fafc;
+  border-left: 1px solid rgba(168, 192, 224, 0.2);
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #cbd5e1;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #10b981;
+  background: #0B224E;
 }
 
-/* Glow effects & utilities */
-.glow-emerald {
-  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
+/* Custom Category Card Text Overrides */
+.card-text-white {
+  color: #ffffff !important;
 }
-.glow-blue {
-  box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.25);
+.card-text-pink {
+  color: rgba(255, 255, 255, 0.8) !important;
 }
-.glow-red {
-  box-shadow: 0 0 25px -5px rgba(239, 68, 68, 0.3);
-}
-
-@keyframes pulse-subtle {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-.animate-pulse-subtle {
-  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-

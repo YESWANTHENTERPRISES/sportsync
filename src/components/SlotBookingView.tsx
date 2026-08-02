@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Calendar, Sun, CloudRain, AlertTriangle, Users, Lock, CheckCircle2, ShieldCheck } from 'lucide-react';
-import { SportFacility, FacilitySlot, MOCK_WEATHER_REPORTS, TIME_SLOTS } from '../utils/mockDb';
+import { SportFacility, FacilitySlot, MOCK_WEATHER_REPORTS, TIME_SLOTS, formatTo12Hour, convertTo24Hour, getISTDate } from '../utils/mockDb';
 import { FullWeatherState, getForecastForDate } from '../utils/weatherService';
 
 interface SlotBookingViewProps {
@@ -18,12 +18,12 @@ interface SlotBookingViewProps {
   weather: FullWeatherState | null;
 }
 
-// Generate next N dates starting today
 const getNextNDays = (n: number) => {
   const dates: { dateStr: string; label: string; weekday: string }[] = [];
+  const today = getISTDate();
   for (let i = 0; i < n; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
     const dateStr = d.toISOString().split('T')[0];
     const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
     const label = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
@@ -176,11 +176,23 @@ export const SlotBookingView: React.FC<SlotBookingViewProps> = ({
                 const isMaint = slot.status === 'Maintenance';
                 const isFull = slot.currentBookings >= slot.maxCapacity;
 
+                let isPastTime = false;
+                try {
+                  const end24 = convertTo24Hour(slot.endTime);
+                  const nowIST = getISTDate();
+                  const slotEnd = new Date(`${slot.date}T${end24}:00`);
+                  isPastTime = nowIST.getTime() >= slotEnd.getTime();
+                } catch (e) {}
+
                 let cardStyle = 'bg-slate-950 border-slate-850 hover:border-blue-500 text-slate-300';
                 let statusLabel = 'Available';
                 let statusStyle = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
 
-                if (isMaint) {
+                if (isPastTime) {
+                  cardStyle = 'bg-slate-950/40 border-slate-850 opacity-40 cursor-not-allowed';
+                  statusLabel = 'Slot Closed';
+                  statusStyle = 'text-slate-500 bg-slate-900 border-slate-800';
+                } else if (isMaint) {
                   cardStyle = 'bg-slate-900 border-slate-850 opacity-60 cursor-not-allowed';
                   statusLabel = 'Maintenance';
                   statusStyle = 'text-amber-500 bg-amber-500/10 border-amber-500/20';
@@ -202,7 +214,7 @@ export const SlotBookingView: React.FC<SlotBookingViewProps> = ({
                   >
                     <div>
                       <div className="text-xs font-mono font-bold text-white">
-                        {slot.startTime} - {slot.endTime}
+                        {formatTo12Hour(slot.startTime)} - {formatTo12Hour(slot.endTime)}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">
                         Capacity: {slot.currentBookings}/{slot.maxCapacity}
@@ -310,7 +322,7 @@ export const SlotBookingView: React.FC<SlotBookingViewProps> = ({
               <div className="flex justify-between">
                 <span className="text-slate-500">Date & Time:</span>
                 <span className="text-blue-400 font-mono font-bold">
-                  {selectedSlot.date} | {selectedSlot.startTime} - {selectedSlot.endTime}
+                  {selectedSlot.date} | {formatTo12Hour(selectedSlot.startTime)} - {formatTo12Hour(selectedSlot.endTime)}
                 </span>
               </div>
               <div className="flex justify-between">

@@ -21,15 +21,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   return (
     <div className="space-y-12 pb-12 animate-fade-in">
       {/* Hero Section */}
-      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-slate-950 via-[#1E2640] to-slate-950 border border-slate-800 p-8 md:p-16 flex flex-col md:flex-row items-center justify-between gap-8">
+      <div 
+        className="relative rounded-3xl overflow-hidden border border-slate-800 p-8 md:p-16 flex flex-col md:flex-row items-center justify-between gap-8 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: 'url(/sports_hero_bg.png)' }}
+      >
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl"></div>
         <div className="space-y-6 max-w-2xl relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/15 border border-blue-500/30 text-xs text-blue-400 font-semibold font-mono">
             ⚡ VIT CHENNAI SPORTS COMPLEX
           </div>
-          <h1 className="text-4xl md:text-5xl font-heading font-bold leading-tight text-white">
+          <h1 className="text-4xl md:text-5xl font-heading font-bold leading-tight text-[#0B224E]" style={{ color: '#0B224E' }}>
             Pre-Book Your Slots, <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
+            <span className="italic font-normal font-serif text-[#0B224E]" style={{ color: '#0B224E' }}>
               Skip The Long Queues
             </span>
           </h1>
@@ -79,32 +82,47 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Sports Categories Grid */}
       <div className="space-y-4">
-        <h2 className="text-xl md:text-2xl font-heading font-bold text-white">Supported Sports & Facilities</h2>
+        <h2 className="text-xl md:text-2xl font-heading font-bold text-white" style={{ color: '#ffffff' }}>Supported Sports & Facilities</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           {[
-            { name: 'Badminton', icon: '🏸', bg: 'from-emerald-500/20 to-teal-500/10' },
-            { name: 'Cricket', icon: '🏏', bg: 'from-amber-500/20 to-yellow-500/10' },
-            { name: 'Basketball', icon: '🏀', bg: 'from-orange-500/20 to-red-500/10' },
-            { name: 'Football', icon: '⚽', bg: 'from-blue-500/20 to-indigo-500/10' },
-            { name: 'Tennis', icon: '🎾', bg: 'from-lime-500/20 to-green-500/10' },
-            { name: 'Volley Ball', icon: '🏐', bg: 'from-pink-500/20 to-rose-500/10' },
-            { name: 'Table Tennis', icon: '🏓', bg: 'from-fuchsia-500/20 to-purple-500/10' },
-            { name: 'Shuttlecock', icon: '🏸', bg: 'from-teal-500/20 to-emerald-500/10' },
-            { name: 'Handball', icon: '🤾', bg: 'from-amber-600/20 to-orange-600/10' },
-            { name: 'Chess', icon: '♟️', bg: 'from-zinc-500/20 to-neutral-500/10' },
-            { name: 'Carrom', icon: '🎯', bg: 'from-red-400/20 to-amber-400/10' },
-            { name: 'Throw Ball', icon: '🏐', bg: 'from-violet-500/20 to-purple-500/10' },
+            { name: 'Badminton', icon: '🏸', bg: 'from-emerald-500 to-teal-400', image: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=400' },
+            { name: 'Cricket', icon: '🏏', bg: 'from-amber-500 to-yellow-400', image: '/cricket.png' },
+            { name: 'Basketball', icon: '🏀', bg: 'from-orange-500 to-red-400', image: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?q=80&w=400' },
+            { name: 'Football', icon: '⚽', bg: 'from-blue-500 to-indigo-400', image: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=400' },
+            { name: 'Tennis', icon: '🎾', bg: 'from-lime-500 to-green-400', image: 'https://images.unsplash.com/photo-1595435934249-5df7ed86e1c0?q=80&w=400' },
+            { name: 'Volley Ball', icon: '🏐', bg: 'from-pink-500 to-rose-400', image: 'https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?q=80&w=400' },
+            { name: 'Table Tennis', icon: '🏓', bg: 'from-fuchsia-500 to-purple-400', image: 'https://images.unsplash.com/photo-1534158914592-062992fbe900?q=80&w=400' },
+            { name: 'Shuttlecock', icon: '🏸', bg: 'from-teal-500 to-emerald-400', image: 'https://images.unsplash.com/photo-1521537634581-0dced2fee2ef?q=80&w=400' },
+            { name: 'Handball', icon: '🤾', bg: 'from-amber-600 to-orange-500', image: '/handball.png' },
+            { name: 'Chess', icon: '♟️', bg: 'from-zinc-500 to-neutral-400', image: 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=400' },
+            { name: 'Carrom', icon: '🎯', bg: 'from-red-400 to-amber-300', image: '/carrom.png' },
+            { name: 'Throw Ball', icon: '🏐', bg: 'from-violet-500 to-purple-450', image: '/throwball.png' },
           ].map(sport => (
             <div 
               key={sport.name}
               onClick={() => onNavigate('facilities')}
-              className={`p-6 rounded-2xl bg-gradient-to-b ${sport.bg} border border-slate-800 hover:border-slate-700 transition cursor-pointer flex flex-col items-center justify-center gap-3 text-center group`}
+              className="relative overflow-hidden h-32 rounded-2xl border border-slate-800/80 hover:border-blue-500/50 transition duration-300 cursor-pointer flex flex-col items-center justify-center gap-2 text-center group shadow-md"
             >
-              <span className="text-3xl group-hover:scale-110 transition duration-300">{sport.icon}</span>
-              <div>
-                <div className="font-heading font-bold text-white text-sm">{sport.name}</div>
-                <div className="text-[10px] text-slate-450 mt-0.5">
-                  {sportCounts[sport.name as any] || 0} Facilities
+              {/* Background Image */}
+              <img 
+                src={sport.image} 
+                alt={sport.name} 
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition duration-500 filter brightness-90"
+              />
+              {/* Gradient Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/30 to-black/50 group-hover:from-black/25 group-hover:via-black/20 group-hover:to-black/40 transition duration-300" />
+              
+              {/* Colored bottom glow indicator */}
+              <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${sport.bg} opacity-80`} />
+
+              {/* Content */}
+              <span className="text-2xl relative z-10 group-hover:scale-110 transition duration-300 drop-shadow-md">
+                {sport.icon}
+              </span>
+              <div className="relative z-10">
+                <div className="font-heading font-bold text-sm tracking-wide drop-shadow-sm" style={{ color: '#ffffff' }}>{sport.name}</div>
+                <div className="text-[10px] mt-0.5" style={{ color: '#ffffff', opacity: 0.8 }}>
+                  {sportCounts[sport.name as any] || 0} {sportCounts[sport.name as any] === 1 ? 'Facility' : 'Facilities'}
                 </div>
               </div>
             </div>

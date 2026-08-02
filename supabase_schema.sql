@@ -55,7 +55,7 @@ create table if not exists public.bookings (
     is_group_booking boolean not null default false,
     group_size integer not null default 1,
     group_members text[] not null default '{}',
-    status text not null default 'Confirmed' check (status in ('Confirmed', 'Cancelled')),
+    status text not null default 'Confirmed' check (status in ('Confirmed', 'Cancelled', 'Completed', 'Checked-In')),
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -152,10 +152,10 @@ values
   ('fac-bad-out-2', 'Campus Outdoor Badminton Court 2', 'Badminton', 'Main Sports Ground', 4, 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=800', 'Outdoor asphalt badminton court. Open air.', false, 'Active', '{"Outdoor sports shoes mandatory","Maximum 4 players per slot"}'),
   ('fac-bad-out-3', 'Campus Outdoor Badminton Court 3', 'Badminton', 'Main Sports Ground', 4, 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=800', 'Outdoor asphalt badminton court. Open air.', false, 'Active', '{"Outdoor sports shoes mandatory","Maximum 4 players per slot"}'),
   ('fac-bad-out-4', 'Campus Outdoor Badminton Court 4', 'Badminton', 'Main Sports Ground', 4, 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=800', 'Outdoor asphalt badminton court. Open air.', false, 'Active', '{"Outdoor sports shoes mandatory","Maximum 4 players per slot"}'),
-  ('fac-cri-oval', 'Main Cricket Oval', 'Cricket', 'Main Sports Field', 22, 'https://images.unsplash.com/photo-1531415080290-bc98545ab5fc?q=80&w=800', 'Full size turf cricket ground for matches.', false, 'Active', '{"Safety gear mandatory","Prior booking approval required for external matches"}'),
-  ('fac-cri-net-1', 'Cricket Practice Net 1', 'Cricket', 'Main Sports Field Area', 6, 'https://images.unsplash.com/photo-1531415080290-bc98545ab5fc?q=80&w=800', 'Practice net with concrete pitch and bowling crease.', false, 'Active', '{"Maximum 6 players per net","Safety gear mandatory"}'),
-  ('fac-cri-net-2', 'Cricket Practice Net 2', 'Cricket', 'Main Sports Field Area', 6, 'https://images.unsplash.com/photo-1531415080290-bc98545ab5fc?q=80&w=800', 'Practice net with concrete pitch and bowling crease.', false, 'Active', '{"Maximum 6 players per net","Safety gear mandatory"}'),
-  ('fac-cri-net-3', 'Cricket Practice Net 3', 'Cricket', 'Main Sports Field Area', 6, 'https://images.unsplash.com/photo-1531415080290-bc98545ab5fc?q=80&w=800', 'Practice net with concrete pitch and bowling crease.', false, 'Active', '{"Maximum 6 players per net","Safety gear mandatory"}'),
+  ('fac-cri-oval', 'Main Cricket Oval', 'Cricket', 'Main Sports Field', 22, '/cricket.png', 'Full size turf cricket ground for matches.', false, 'Active', '{"Safety gear mandatory","Prior booking approval required for external matches"}'),
+  ('fac-cri-net-1', 'Cricket Practice Net 1', 'Cricket', 'Main Sports Field Area', 6, '/cricket.png', 'Practice net with concrete pitch and bowling crease.', false, 'Active', '{"Maximum 6 players per net","Safety gear mandatory"}'),
+  ('fac-cri-net-2', 'Cricket Practice Net 2', 'Cricket', 'Main Sports Field Area', 6, '/cricket.png', 'Practice net with concrete pitch and bowling crease.', false, 'Active', '{"Maximum 6 players per net","Safety gear mandatory"}'),
+  ('fac-cri-net-3', 'Cricket Practice Net 3', 'Cricket', 'Main Sports Field Area', 6, '/cricket.png', 'Practice net with concrete pitch and bowling crease.', false, 'Active', '{"Maximum 6 players per net","Safety gear mandatory"}'),
   ('fac-bas-1', 'Basketball Court 1 (Beside Anna Auditorium)', 'Basketball', 'Beside Anna Auditorium', 10, 'https://images.unsplash.com/photo-1544698310-74ea9d1c8258?q=80&w=800', 'Outdoor concrete basketball court equipped with floodlights.', false, 'Active', '{"Maximum 10 players","Clean footwear required"}'),
   ('fac-bas-2', 'Basketball Court 2 (Beside Anna Auditorium)', 'Basketball', 'Beside Anna Auditorium', 10, 'https://images.unsplash.com/photo-1544698310-74ea9d1c8258?q=80&w=800', 'Outdoor concrete basketball court equipped with floodlights.', false, 'Active', '{"Maximum 10 players","Clean footwear required"}'),
   ('fac-football', 'Full-Size Football Field', 'Football', 'Main Sports Field', 22, 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=800', 'Full size turf football field for standard matches.', false, 'Active', '{"Proper sports cleats mandatory","Maximum 22 players"}'),
@@ -169,24 +169,24 @@ values
   ('fac-tt-4', 'Recreational Zone TT Table 4', 'Table Tennis', 'Indoor Recreation Zone', 4, 'https://images.unsplash.com/photo-1534067783941-51c9c23eccfd?q=80&w=800', 'Standard Table Tennis table inside student recreation area.', true, 'Active', '{"Maximum 4 players","Paddles and ball available at counter"}'),
   ('fac-shuttle-1', 'Campus Shuttlecock Court 1', 'Shuttlecock', 'Main Sports Ground', 4, 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=800', 'Outdoor shuttlecock court for student use.', false, 'Active', '{"Maximum 4 players"}'),
   ('fac-shuttle-2', 'Campus Shuttlecock Court 2', 'Shuttlecock', 'Main Sports Ground', 4, 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?q=80&w=800', 'Outdoor shuttlecock court for student use.', false, 'Active', '{"Maximum 4 players"}'),
-  ('fac-hand-1', 'Outdoor Handball Court 1', 'Handball', 'Main Sports Ground', 14, 'https://images.unsplash.com/photo-1551958219-acbc608c6377?q=80&w=800', 'Standard outdoor handball court with goals.', false, 'Active', '{"Maximum 14 players","Sports attire mandatory"}'),
-  ('fac-hand-2', 'Outdoor Handball Court 2', 'Handball', 'Main Sports Ground', 14, 'https://images.unsplash.com/photo-1551958219-acbc608c6377?q=80&w=800', 'Standard outdoor handball court with goals.', false, 'Active', '{"Maximum 14 players","Sports attire mandatory"}'),
+  ('fac-hand-1', 'Outdoor Handball Court 1', 'Handball', 'Main Sports Ground', 14, '/handball.png', 'Standard outdoor handball court with goals.', false, 'Active', '{"Maximum 14 players","Sports attire mandatory"}'),
+  ('fac-hand-2', 'Outdoor Handball Court 2', 'Handball', 'Main Sports Ground', 14, '/handball.png', 'Standard outdoor handball court with goals.', false, 'Active', '{"Maximum 14 players","Sports attire mandatory"}'),
   ('fac-chess-1', 'Recreational Zone Chess Board 1', 'Chess', 'Indoor Recreation Zone', 2, 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=800', 'Chess table set up in recreation room.', true, 'Active', '{"Maximum 2 players","Maintain silence"}'),
   ('fac-chess-2', 'Recreational Zone Chess Board 2', 'Chess', 'Indoor Recreation Zone', 2, 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=800', 'Chess table set up in recreation room.', true, 'Active', '{"Maximum 2 players","Maintain silence"}'),
   ('fac-chess-3', 'Recreational Zone Chess Board 3', 'Chess', 'Indoor Recreation Zone', 2, 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=800', 'Chess table set up in recreation room.', true, 'Active', '{"Maximum 2 players","Maintain silence"}'),
   ('fac-chess-4', 'Recreational Zone Chess Board 4', 'Chess', 'Indoor Recreation Zone', 2, 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?q=80&w=800', 'Chess table set up in recreation room.', true, 'Active', '{"Maximum 2 players","Maintain silence"}'),
-  ('fac-carrom-1', 'Recreational Zone Carrom Board 1', 'Carrom', 'Indoor Recreation Zone', 4, 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?q=80&w=800', 'Standard carrom board with accessories.', true, 'Active', '{"Maximum 4 players","Do not waste carrom powder"}'),
-  ('fac-carrom-2', 'Recreational Zone Carrom Board 2', 'Carrom', 'Indoor Recreation Zone', 4, 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?q=80&w=800', 'Standard carrom board with accessories.', true, 'Active', '{"Maximum 4 players","Do not waste carrom powder"}'),
-  ('fac-carrom-3', 'Recreational Zone Carrom Board 3', 'Carrom', 'Indoor Recreation Zone', 4, 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?q=80&w=800', 'Standard carrom board with accessories.', true, 'Active', '{"Maximum 4 players","Do not waste carrom powder"}'),
-  ('fac-carrom-4', 'Recreational Zone Carrom Board 4', 'Carrom', 'Indoor Recreation Zone', 4, 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?q=80&w=800', 'Standard carrom board with accessories.', true, 'Active', '{"Maximum 4 players","Do not waste carrom powder"}'),
-  ('fac-throw-1', 'Outdoor Throwball Court 1', 'Throw Ball', 'Main Sports Ground', 14, 'https://images.unsplash.com/photo-1592656094270-b9bd29d79998?q=80&w=800', 'Outdoor throwball court for student matches.', false, 'Active', '{"Maximum 14 players"}')
-on conflict (id) do nothing;
+  ('fac-carrom-1', 'Recreational Zone Carrom Board 1', 'Carrom', 'Indoor Recreation Zone', 4, '/carrom.png', 'Standard carrom board with accessories.', true, 'Active', '{"Maximum 4 players","Do not waste carrom powder"}'),
+  ('fac-carrom-2', 'Recreational Zone Carrom Board 2', 'Carrom', 'Indoor Recreation Zone', 4, '/carrom.png', 'Standard carrom board with accessories.', true, 'Active', '{"Maximum 4 players","Do not waste carrom powder"}'),
+  ('fac-carrom-3', 'Recreational Zone Carrom Board 3', 'Carrom', 'Indoor Recreation Zone', 4, '/carrom.png', 'Standard carrom board with accessories.', true, 'Active', '{"Maximum 4 players","Do not waste carrom powder"}'),
+  ('fac-carrom-4', 'Recreational Zone Carrom Board 4', 'Carrom', 'Indoor Recreation Zone', 4, '/carrom.png', 'Standard carrom board with accessories.', true, 'Active', '{"Maximum 4 players","Do not waste carrom powder"}'),
+  ('fac-throw-1', 'Outdoor Throwball Court 1', 'Throw Ball', 'Main Sports Ground', 14, '/throwball.png', 'Outdoor throwball court for student matches.', false, 'Active', '{"Maximum 14 players"}')
+on conflict (id) do update set image_url = excluded.image_url;
 
 -- Insert Initial Admin Config
 insert into public.admin_config (key, value)
 values
   ('maxBookingsPerUserPerDay', '2'),
-  ('advanceBookingWindowDays', '7'),
+  ('advanceBookingWindowDays', '3'),
   ('weatherThresholdAlert', 'Rainy')
 on conflict (key) do update set value = excluded.value;
 

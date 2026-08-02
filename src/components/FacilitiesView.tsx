@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Search, MapPin, Layers, Users, Calendar, Sparkles, Filter, RefreshCw } from 'lucide-react';
-import { SportFacility, FacilitySlot, Booking } from '../utils/mockDb';
+import { SportFacility, FacilitySlot, Booking, convertTo24Hour } from '../utils/mockDb';
 
 interface FacilitiesViewProps {
   facilities: SportFacility[];
@@ -49,10 +49,11 @@ export const FacilitiesView: React.FC<FacilitiesViewProps> = ({
     let matchesTime = true;
     if (timeOfDay !== 'ALL') {
       matchesTime = facSlots.some(s => {
-        const hour = parseInt(s.startTime.split(':')[0]);
-        if (timeOfDay === 'Morning') return hour < 12;
-        if (timeOfDay === 'Afternoon') return hour >= 12 && hour < 16;
-        if (timeOfDay === 'Evening') return hour >= 16;
+        const start24 = convertTo24Hour(s.startTime);
+        const hour24 = parseInt(start24.split(':')[0], 10);
+        if (timeOfDay === 'Morning') return hour24 >= 7 && hour24 < 12;
+        if (timeOfDay === 'Afternoon') return hour24 >= 12 && hour24 < 16;
+        if (timeOfDay === 'Evening') return hour24 >= 16 && hour24 <= 20;
         return true;
       });
     }
@@ -188,15 +189,15 @@ export const FacilitiesView: React.FC<FacilitiesViewProps> = ({
                       <img 
                         src={fac.photoUrl} 
                         alt={fac.name}
-                        className="w-full h-full object-cover opacity-80 hover:scale-105 transition duration-550"
+                        className="w-full h-full object-cover hover:scale-105 transition duration-550"
                       />
-                      <div className="absolute top-3 right-3 px-2.5 py-1 rounded bg-[#0A0F1E]/80 backdrop-blur-sm border border-slate-700 text-[10px] font-bold text-white uppercase tracking-wider font-mono">
+                      <div className="absolute top-3 right-3 px-2.5 py-1 rounded bg-[#0A0F1E]/80 backdrop-blur-sm border border-slate-700 text-[10px] font-bold uppercase tracking-wider font-mono" style={{ color: '#ffffff' }}>
                         {fac.sportType}
                       </div>
                       
                       {/* Available indicator */}
-                      <div className="absolute bottom-3 left-3 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/35 text-[10px] font-semibold text-emerald-400 flex items-center gap-1 backdrop-blur-sm">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      <div className="absolute bottom-3 left-3 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-semibold flex items-center gap-1 backdrop-blur-sm" style={{ color: '#4ade80' }}>
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#4ade80' }}></span>
                         {availCount} slots available
                       </div>
                     </div>

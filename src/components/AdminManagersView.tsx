@@ -14,17 +14,14 @@ import {
   AlertTriangle,
   Play,
   X,
-  Megaphone
+  Megaphone,
+  QrCode,
+  Upload,
+  Search,
+  Check
 } from 'lucide-react';
-import { 
-  SportFacility, 
-  FacilitySlot, 
-  Booking, 
-  UserProfile, 
-  AdminConfig, 
-  Announcement,
-  TIME_SLOTS 
-} from '../utils/mockDb';
+import jsQR from 'jsqr';
+import { UserProfile, SportFacility, Booking, AuditLog, AdminConfig, Announcement, formatTo12Hour, convertTo24Hour, getISTDate, FacilitySlot, MockDatabase } from '../utils/mockDb';
 
 interface AdminManagersProps {
   activeTab: 'admin-facilities' | 'admin-slots' | 'admin-bookings' | 'admin-users' | 'admin-announcements';
@@ -72,6 +69,141 @@ export const AdminManagersView: React.FC<AdminManagersProps> = ({
   onDeleteAnnouncement
 }) => {
   const [newAnnMsg, setNewAnnMsg] = useState('');
+
+  // QR Check-in states
+  const [manualCode, setManualCode] = useState('');
+  const [scannedBooking, setScannedBooking] = useState<Booking | null>(null);
+  const [scannedStudent, setScannedStudent] = useState<UserProfile | null>(null);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanSuccessMsg, setScanSuccessMsg] = useState<string | null>(null);
+
+  const lookupBooking = async (bookingId: string) => {
+    if (!bookingId) return;
+    setScanLoading(true);
+    setScanError(null);
+    setScanSuccessMsg(null);
+    setScannedBooking(null);
+    setScannedStudent(null);
+    
+    try {
+      const cleanId = bookingId.trim();
+      const booking = await MockDatabase.getBookingById(cleanId);
+      if (booking) {
+        setScannedBooking(booking);
+        const studentProfile = await MockDatabase.getUserById(booking.userId);
+        if (studentProfile) {
+          setScannedStudent(studentProfile);
+        }
+      } else {
+        setScanError(`Booking code "${cleanId}" not found in registry.`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setScanError(err.message || 'Error occurred while looking up booking ID.');
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  const handleQrImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setScanLoading(true);
+    setScanError(null);
+    setScanSuccessMsg(null);
+    setScannedBooking(null);
+    setScannedStudent(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          if (!context) {
+            setScanError('Failed to get canvas 2D context.');
+            setScanLoading(false);
+            return;
+          }
+
+          canvas.width = img.width;
+          canvas.height = img.height;
+          context.drawImage(img, 0, 0, img.width, img.height);
+          const imageData = context.getImageData(0, 0, img.width, img.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+          if (code) {
+            console.log('QR Code Decoded:', code.data);
+            
+            // Extract booking ID via regex matching (URL query param or raw text field)
+            const urlMatch = code.data.match(/verifyBooking=([A-Za-z0-9-]+)/);
+            const idMatch = code.data.match(/Booking ID:\s*([A-Za-z0-9-]+)/i);
+            
+            let bookingId = code.data.trim();
+            if (urlMatch) {
+              bookingId = urlMatch[1];
+            } else if (idMatch) {
+              bookingId = idMatch[1];
+            }
+            
+            lookupBooking(bookingId);
+          } else {
+            setScanError('Could not find any readable QR Code in this image.');
+            setScanLoading(false);
+          }
+        } catch (err: any) {
+          console.error(err);
+          setScanError('Error decoding image file.');
+          setScanLoading(false);
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleGateCheckIn = async () => {
+    if (!scannedBooking) return;
+    setScanLoading(true);
+    try {
+      const res = await MockDatabase.checkInBooking(scannedBooking.id, 'usr-admin');
+      if (res.success) {
+        setScanSuccessMsg(res.message);
+        const updated = await MockDatabase.getBookingById(scannedBooking.id);
+        if (updated) setScannedBooking(updated);
+      } else {
+        setScanError(res.message);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setScanError(err.message || 'Check-in transaction failed.');
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  const handleGateCloseSlot = async () => {
+    if (!scannedBooking) return;
+    setScanLoading(true);
+    try {
+      const res = await MockDatabase.closeBookingSlot(scannedBooking.id, 'usr-admin');
+      if (res.success) {
+        setScanSuccessMsg(res.message);
+        const updated = await MockDatabase.getBookingById(scannedBooking.id);
+        if (updated) setScannedBooking(updated);
+      } else {
+        setScanError(res.message);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setScanError(err.message || 'Close slot transaction failed.');
+    } finally {
+      setScanLoading(false);
+    }
+  };
   // Facility Form Modal State
   const [facModalOpen, setFacModalOpen] = useState(false);
   const [newFacName, setNewFacName] = useState('');
@@ -387,10 +519,229 @@ export const AdminManagersView: React.FC<AdminManagersProps> = ({
 
       {/* 3. BOOKINGS REGISTRY AUDIT TAB */}
       {activeTab === 'admin-bookings' && (
-        <div className="bg-[#1E2640] border border-slate-800 rounded-2xl p-6 space-y-4">
+        <div className="bg-[#1E2640] border border-slate-800 rounded-2xl p-6 space-y-6">
           <div>
             <h3 className="font-heading font-bold text-white text-base">Global Bookings Registry</h3>
             <p className="text-xs text-slate-450">Complete registry database audits of campus pre-bookings</p>
+          </div>
+
+          {/* QR Scan & Manual Verification Workspace */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950/40 p-5 border border-slate-850 rounded-2xl">
+            
+            {/* Input & Upload Panel */}
+            <div className="space-y-4">
+              <div>
+                <h4 className="text-sm font-heading font-bold text-white flex items-center gap-1.5">
+                  <QrCode className="w-4 h-4 text-blue-400" />
+                  QR Verification & Check-In Desk
+                </h4>
+                <p className="text-[11px] text-slate-455 mt-0.5">Scan student pass screenshot or type booking ID key</p>
+              </div>
+
+              {/* Manual Input */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono text-slate-500 uppercase">Booking Key Reference</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={manualCode}
+                    onChange={(e) => setManualCode(e.target.value)}
+                    placeholder="e.g. SS-1700000000000-123"
+                    className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-blue-500/50"
+                  />
+                  <button
+                    onClick={() => lookupBooking(manualCode)}
+                    disabled={!manualCode.trim() || scanLoading}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-xl text-xs font-heading font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <Search className="w-3.5 h-3.5" /> Lookup
+                  </button>
+                </div>
+              </div>
+
+              {/* QR Image drag & drop */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono text-slate-500 uppercase">Upload Student QR Code Pass</label>
+                <div className="border border-dashed border-slate-800 hover:border-blue-500/50 rounded-xl p-4 text-center cursor-pointer transition relative bg-slate-900/30">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleQrImageUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="flex flex-col items-center gap-1.5 text-slate-400">
+                    <Upload className="w-6 h-6 text-slate-500" />
+                    <span className="text-xs font-semibold">Select or Drop QR Code Image</span>
+                    <span className="text-[9px] text-slate-500">Supports PNG, JPG (Client Decoded)</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scan Alerts */}
+              {scanLoading && (
+                <div className="text-xs text-slate-450 font-mono animate-pulse flex items-center gap-2">
+                  <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  Verifying signature with database...
+                </div>
+              )}
+              {scanError && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-xs text-red-400 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{scanError}</span>
+                </div>
+              )}
+              {scanSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-400 flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{scanSuccessMsg}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Scanned/Decoded Detail Panel */}
+            <div className="bg-slate-900/50 border border-slate-850/80 rounded-2xl p-4 flex flex-col justify-between gap-4 min-h-[220px]">
+              {scannedBooking ? (
+                <div className="space-y-4 flex-1">
+                  {/* Status header */}
+                  <div className="flex justify-between items-center pb-2.5 border-b border-slate-800">
+                    <div>
+                      <span className="text-[10px] font-mono text-slate-500">INSPECTED PASS STATUS</span>
+                      <div className="mt-0.5">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                          scannedBooking.status === 'Confirmed'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                            : scannedBooking.status === 'Completed'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/25'
+                            : 'bg-red-500/10 text-red-400 border-red-500/25'
+                        }`}>
+                          {scannedBooking.status === 'Confirmed' ? '✅ APPROVED' : scannedBooking.status === 'Completed' ? '🔹 CLOSED' : '❌ CANCELLED'}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-mono font-semibold text-slate-400 bg-slate-950 px-2 py-1 border border-slate-800 rounded">
+                      ID: {scannedBooking.id}
+                    </span>
+                  </div>
+
+                  {/* Late Arrival Warning */}
+                  {(() => {
+                    try {
+                      const now = new Date();
+                      const slotStart = new Date(`${scannedBooking.date}T${scannedBooking.startTime}:00`);
+                      const diffMinutes = Math.floor((now.getTime() - slotStart.getTime()) / (1000 * 60));
+                      if (diffMinutes > 0 && scannedBooking.status === 'Confirmed') {
+                        return (
+                          <div className="p-3 bg-amber-500/10 border border-amber-550/20 rounded-xl text-xs text-amber-400 flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500 animate-pulse" />
+                            <div>
+                              <strong className="text-amber-300">Late Arrival:</strong> Student is late by <strong className="font-mono text-sm">{diffMinutes}</strong> minutes.
+                            </div>
+                          </div>
+                        );
+                      }
+                    } catch {}
+                    return null;
+                  })()}
+
+                  {/* Student & Booking Details split */}
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-[9px] font-mono text-slate-500 uppercase">Student Name</div>
+                        <div className="font-bold text-white">{scannedBooking.userName}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-mono text-slate-500 uppercase">College Registration</div>
+                        <div className="font-mono font-semibold text-slate-350">{scannedBooking.userCollegeId}</div>
+                      </div>
+                      {scannedStudent && (
+                        <div>
+                          <div className="text-[9px] font-mono text-slate-500 uppercase">Contact Phone</div>
+                          <div className="font-mono text-slate-400">{scannedStudent.phone}</div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-[9px] font-mono text-slate-500 uppercase">Sport Facility</div>
+                        <div className="font-bold text-white">{scannedBooking.facilityName}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-mono text-slate-500 uppercase">Scheduled slot</div>
+                        <div className="font-semibold text-slate-300">{scannedBooking.date}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-mono text-slate-500 uppercase">Timing</div>
+                        <div className="font-mono text-blue-400 font-semibold">{formatTo12Hour(scannedBooking.startTime)} - {formatTo12Hour(scannedBooking.endTime)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Controls */}
+                  <div className="space-y-3 pt-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        disabled={scannedBooking.status !== 'Confirmed'}
+                        onClick={handleGateCheckIn}
+                        className={`w-full py-2.5 rounded-xl font-heading font-extrabold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                          scannedBooking.status === 'Confirmed'
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 shadow active:scale-95'
+                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                        }`}
+                      >
+                        <Check className="w-4 h-4" /> 
+                        {scannedBooking.status === 'Checked-In' ? 'Checked In' : 'Confirm Check-In'}
+                      </button>
+
+                      <button
+                        disabled={scannedBooking.status !== 'Confirmed' && scannedBooking.status !== 'Checked-In'}
+                        onClick={handleGateCloseSlot}
+                        className={`w-full py-2.5 rounded-xl font-heading font-extrabold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                          (scannedBooking.status === 'Confirmed' || scannedBooking.status === 'Checked-In')
+                            ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow active:scale-95'
+                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                        }`}
+                      >
+                        <X className="w-4 h-4" />
+                        {(() => {
+                          try {
+                            const now = getISTDate();
+                            const start24 = convertTo24Hour(scannedBooking.startTime);
+                            const slotStart = new Date(`${scannedBooking.date}T${start24}:00`);
+                            const diffMinutes = Math.floor((now.getTime() - slotStart.getTime()) / (1000 * 60));
+                            if (diffMinutes > 0) {
+                              return `Cancel Slot (${diffMinutes}m Late)`;
+                            }
+                          } catch {}
+                          return 'Cancel Slot';
+                        })()}
+                      </button>
+                    </div>
+
+                    {scannedBooking.status === 'Completed' && (
+                      <div className="text-center text-[10px] font-mono text-slate-500 p-2 border border-slate-800 rounded bg-slate-950/40">
+                        ✅ Slot is Closed (Student Checked In).
+                      </div>
+                    )}
+                    {scannedBooking.status === 'Cancelled' && (
+                      <div className="text-center text-[10px] font-mono text-red-400 p-2 border border-red-950/30 rounded bg-red-950/10">
+                        ❌ Booking Cancelled (Late Arrival / No Show).
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-550 gap-2">
+                  <QrCode className="w-8 h-8 text-slate-700 animate-pulse" />
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-400">Waiting for QR Signature</h5>
+                    <p className="text-[10px] text-slate-500 max-w-[200px] mt-0.5">Please scan or input a booking verification key to begin gate audits</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
 
           <div className="overflow-x-auto">

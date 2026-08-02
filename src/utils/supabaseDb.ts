@@ -9,7 +9,11 @@ import {
   AdminConfig,
   Announcement,
   getOffsetDateString,
-  TIME_SLOTS
+  formatTo12Hour,
+  convertTo24Hour,
+  getISTDate,
+  TIME_SLOTS,
+  INITIAL_FACILITIES
 } from './mockDb';
 
 // --- DATABASE MAPPING UTILITIES ---
@@ -306,9 +310,88 @@ export class SupabaseDatabase {
 
   // --- SLOTS ---
   static async getSlots(): Promise<FacilitySlot[]> {
-    const { data, error } = await supabase.from('slots').select('*');
-    if (error || !data) return [];
-    return data.map(mapSlot);
+    // 1. Fetch facilities
+    let facilities: SportFacility[] = [];
+    try {
+      const { data: facData } = await supabase.from('facilities').select('*');
+      if (facData && facData.length > 0) {
+        facilities = facData.map(mapFacility);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch facilities from Supabase', e);
+    }
+    if (facilities.length === 0) {
+      facilities = INITIAL_FACILITIES;
+    }
+
+    // 2. Fetch DB slots for manual overrides
+    const dbSlotMap = new Map<string, any>();
+    try {
+      const { data: rawSlots } = await supabase.from('slots').select('*');
+      if (rawSlots) {
+        rawSlots.forEach(s => dbSlotMap.set(s.id, s));
+      }
+    } catch (e) {}
+
+    // 3. Fetch active bookings (Confirmed or Checked-In)
+    const activeSlotMap = new Map<string, { totalOccupancy: number; isActive: boolean }>();
+    try {
+      const { data: activeBookingsData } = await supabase.from('bookings')
+        .select('slot_id, is_group_booking, group_size, status')
+        .in('status', ['Confirmed', 'Checked-In']);
+
+      if (activeBookingsData) {
+        activeBookingsData.forEach(b => {
+          if (!b.slot_id) return;
+          const existing = activeSlotMap.get(b.slot_id) || { totalOccupancy: 0, isActive: false };
+          const occupancy = b.is_group_booking ? (b.group_size || 1) : 1;
+          existing.totalOccupancy += occupancy;
+          existing.isActive = true;
+          activeSlotMap.set(b.slot_id, existing);
+        });
+      }
+    } catch (e) {}
+
+    // 4. Generate clean 1-hour slots for 7 days based on TIME_SLOTS rules
+    const slots: FacilitySlot[] = [];
+    const dateRange: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      dateRange.push(getOffsetDateString(i));
+    }
+
+    facilities.forEach(fac => {
+      dateRange.forEach(dateStr => {
+        TIME_SLOTS.forEach(slotInfo => {
+          const slotId = `${fac.id}-${dateStr}-${slotInfo.start.replace(/[^a-zA-Z0-9]/g, '')}`;
+          const dbRow = dbSlotMap.get(slotId);
+          
+          let status: FacilitySlot['status'] = 'Available';
+          if (dbRow && (dbRow.status === 'Blocked' || dbRow.status === 'Maintenance')) {
+            status = dbRow.status;
+          }
+
+          const activeInfo = activeSlotMap.get(slotId);
+          if (activeInfo && activeInfo.isActive) {
+            if (activeInfo.totalOccupancy >= fac.capacity) {
+              status = 'Booked';
+            }
+          }
+
+          slots.push({
+            id: slotId,
+            facilityId: fac.id,
+            date: dateStr,
+            startTime: formatTo12Hour(slotInfo.start),
+            endTime: formatTo12Hour(slotInfo.end),
+            status,
+            maxCapacity: fac.capacity,
+            currentBookings: activeInfo ? activeInfo.totalOccupancy : 0
+          });
+        });
+      });
+    });
+
+    return slots;
   }
 
   static async updateSlotStatus(slotId: string, status: string): Promise<void> {
@@ -355,7 +438,7 @@ export class SupabaseDatabase {
       facilities.forEach(fac => {
         TIME_SLOTS.forEach(slotInfo => {
           newSlots.push({
-            id: `${fac.id}-${dateStr}-${slotInfo.start.replace(':', '')}`,
+            id: `${fac.id}-${dateStr}-${slotInfo.start.replace(/[^a-zA-Z0-9]/g, '')}`,
             facility_id: fac.id,
             date: dateStr,
             start_time: slotInfo.start,
@@ -375,9 +458,51 @@ export class SupabaseDatabase {
 
   // --- BOOKINGS ---
   static async getBookings(): Promise<Booking[]> {
-    const { data, error } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
-    if (error || !data) return [];
-    return data.map(mapBooking);
+    let dbBookings: Booking[] = [];
+    try {
+      const { data, error } = await supabase.from('bookings').select('*').order('created_at', { ascending: false });
+      if (data && data.length > 0) {
+        dbBookings = data.map(mapBooking);
+      }
+    } catch (e) {}
+
+    let localBookings: Booking[] = [];
+    try {
+      const raw = localStorage.getItem('sportsync_bookings');
+      if (raw) {
+        localBookings = JSON.parse(raw);
+      }
+    } catch (e) {}
+
+    const bookingMap = new Map<string, Booking>();
+    
+    // Add local bookings
+    localBookings.forEach(b => {
+      bookingMap.set(b.id, b);
+    });
+
+    // Add or override with DB bookings
+    dbBookings.forEach(b => {
+      const existing = bookingMap.get(b.id);
+      if (existing) {
+        if (b.status === 'Cancelled' || b.status === 'Completed' || b.status === 'Checked-In') {
+          bookingMap.set(b.id, b);
+        } else if (existing.status === 'Cancelled' || existing.status === 'Completed' || existing.status === 'Checked-In') {
+          bookingMap.set(b.id, existing);
+        } else {
+          bookingMap.set(b.id, b);
+        }
+      } else {
+        bookingMap.set(b.id, b);
+      }
+    });
+
+    const merged = Array.from(bookingMap.values());
+    try {
+      localStorage.setItem('sportsync_bookings', JSON.stringify(merged));
+    } catch (e) {}
+
+    return merged;
   }
 
   static async createBooking(params: {
@@ -414,19 +539,51 @@ export class SupabaseDatabase {
       return { success: false, message: 'You have already booked this slot!' };
     }
 
-    // Check availability
-    const { data: activeSlot } = await supabase.from('slots').select('current_bookings, max_capacity').eq('id', slot.id).single();
-    if (!activeSlot || activeSlot.current_bookings >= activeSlot.max_capacity) {
+    // Check active slot availability & occupancy
+    const { data: activeBookingCheck } = await supabase.from('bookings')
+      .select('id, group_size, is_group_booking')
+      .eq('slot_id', slot.id)
+      .in('status', ['Confirmed', 'Checked-In']);
+
+    let totalOccupancy = 0;
+    if (activeBookingCheck && activeBookingCheck.length > 0) {
+      activeBookingCheck.forEach(b => {
+        totalOccupancy += b.is_group_booking ? (b.group_size || 1) : 1;
+      });
+    }
+
+    const requestedOccupancy = params.isGroupBooking ? (params.groupSize || 1) : 1;
+    const maxCapacity = facility.capacity || slot.maxCapacity || 4;
+
+    if (totalOccupancy + requestedOccupancy > maxCapacity || totalOccupancy >= maxCapacity) {
       return { success: false, message: 'Slot is fully booked. You can join the waitlist instead.' };
     }
 
-    // Book it
-    const newBookingsCount = activeSlot.current_bookings + 1;
-    const newStatus = newBookingsCount >= activeSlot.max_capacity ? 'Booked' : 'Available';
+    // Ensure slot row exists in slots table in Supabase
+    const newCount = totalOccupancy + requestedOccupancy;
+    const newStatus = newCount >= maxCapacity ? 'Booked' : 'Available';
 
-    await supabase.from('slots')
-      .update({ current_bookings: newBookingsCount, status: newStatus })
-      .eq('id', slot.id);
+    try {
+      const { data: activeSlot } = await supabase.from('slots').select('id').eq('id', slot.id).maybeSingle();
+      if (!activeSlot) {
+        await supabase.from('slots').insert([{
+          id: slot.id,
+          facility_id: facility.id,
+          date: slot.date,
+          start_time: slot.startTime,
+          end_time: slot.endTime,
+          status: newStatus,
+          max_capacity: maxCapacity,
+          current_bookings: newCount
+        }]);
+      } else {
+        await supabase.from('slots')
+          .update({ current_bookings: newCount, status: newStatus })
+          .eq('id', slot.id);
+      }
+    } catch (e) {
+      console.warn('Slot table sync warning:', e);
+    }
 
     const bookingId = `SS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const newBooking: Booking = {
@@ -471,35 +628,192 @@ export class SupabaseDatabase {
     return { success: true, message: 'Booking confirmed!', booking: newBooking };
   }
 
+  static async getBookingById(id: string): Promise<Booking | null> {
+    try {
+      const { data, error } = await supabase.from('bookings')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (data) return mapBooking(data);
+    } catch (e) {}
+
+    // Fallback: Check local storage
+    try {
+      const raw = localStorage.getItem('sportsync_bookings');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const found = list.find((b: any) => b.id === id);
+        if (found) return found;
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
   static async cancelBooking(bookingId: string, actingUserId: string): Promise<{ success: boolean; message: string }> {
-    const { data: booking } = await supabase.from('bookings').select('*').eq('id', bookingId).single();
+    const booking = await this.getBookingById(bookingId);
     if (!booking) return { success: false, message: 'Booking not found' };
     if (booking.status !== 'Confirmed') return { success: false, message: 'Booking already cancelled or completed' };
 
     const user = await this.getUserById(actingUserId);
     if (!user) return { success: false, message: 'User not found' };
 
-    if (booking.is_group_booking && user.role === 'Student' && booking.user_id !== user.id) {
+    if (booking.isGroupBooking && user.role === 'Student' && booking.userId !== user.id) {
       return { success: false, message: 'Only the booking captain can cancel a group booking!' };
     }
 
-    // Cancel Booking
-    await supabase.from('bookings').update({ status: 'Cancelled' }).eq('id', bookingId);
+    // 1. Update Supabase
+    try {
+      await supabase.from('bookings').update({ status: 'Cancelled' }).eq('id', bookingId);
+      if (booking.slotId) {
+        const { data: slot } = await supabase.from('slots').select('current_bookings').eq('id', booking.slotId).maybeSingle();
+        if (slot && slot.current_bookings > 0) {
+          await supabase.from('slots')
+            .update({ current_bookings: Math.max(0, slot.current_bookings - 1), status: 'Available' })
+            .eq('id', booking.slotId);
+        }
+      }
+    } catch (e) {}
 
-    // Free Slot Capacity
-    const { data: slot } = await supabase.from('slots').select('current_bookings').eq('id', booking.slot_id).single();
-    if (slot && slot.current_bookings > 0) {
-      await supabase.from('slots')
-        .update({ current_bookings: slot.current_bookings - 1, status: 'Available' })
-        .eq('id', booking.slot_id);
-    }
+    // 2. Update LocalStorage cache
+    try {
+      const raw = localStorage.getItem('sportsync_bookings');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const idx = list.findIndex((b: any) => b.id === bookingId);
+        if (idx !== -1) {
+          list[idx].status = 'Cancelled';
+          localStorage.setItem('sportsync_bookings', JSON.stringify(list));
+        }
+      }
+    } catch (e) {}
 
     await this.log(user.id, user.name, `Cancelled slot booking: ${bookingId}`, 'Booking', bookingId);
 
     // Promote waitlist automatically
-    await this.promoteWaitlist(booking.slot_id);
+    if (booking.slotId) {
+      await this.promoteWaitlist(booking.slotId);
+    }
 
     return { success: true, message: 'Booking cancelled successfully' };
+  }
+
+  static async checkInBooking(bookingId: string, actingUserId: string): Promise<{ success: boolean; message: string; schemaWarning?: boolean }> {
+    const booking = await this.getBookingById(bookingId);
+    if (!booking) return { success: false, message: 'Booking not found' };
+    if (booking.status === 'Cancelled') return { success: false, message: 'Cannot check in a cancelled booking.' };
+    if (booking.status === 'Checked-In') return { success: true, message: 'Student is already checked in.' };
+
+    const user = await this.getUserById(actingUserId);
+    const userName = user ? user.name : 'System';
+
+    // 1. Update Supabase
+    try {
+      await supabase.from('bookings')
+        .update({ status: 'Checked-In' })
+        .eq('id', bookingId);
+    } catch (e) {}
+
+    // 2. Update LocalStorage cache
+    try {
+      const raw = localStorage.getItem('sportsync_bookings');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const idx = list.findIndex((b: any) => b.id === bookingId);
+        if (idx !== -1) {
+          list[idx].status = 'Checked-In';
+          localStorage.setItem('sportsync_bookings', JSON.stringify(list));
+        }
+      }
+    } catch (e) {}
+
+    let delayMinutes = 0;
+    try {
+      const nowIST = getISTDate();
+      const start24 = convertTo24Hour(booking.startTime);
+      const slotStart = new Date(`${booking.date}T${start24}:00`);
+      delayMinutes = Math.floor((nowIST.getTime() - slotStart.getTime()) / (1000 * 60));
+    } catch (e) {}
+
+    let logMsg = `Slot opened on time for ${booking.facilityName} (${booking.userName})`;
+    if (delayMinutes > 0) {
+      logMsg = `Slot opened ${delayMinutes}m delayed for ${booking.facilityName} (${booking.userName})`;
+    }
+
+    await this.log(actingUserId, userName, logMsg, 'Booking', bookingId);
+    return { success: true, message: 'Student checked in successfully!' };
+  }
+
+  static async closeBookingSlot(bookingId: string, actingUserId: string): Promise<{ success: boolean; message: string; schemaWarning?: boolean }> {
+    const booking = await this.getBookingById(bookingId);
+    if (!booking) return { success: false, message: 'Booking not found' };
+    if (booking.status === 'Completed' || booking.status === 'Cancelled') {
+      return { success: true, message: 'Booking slot is already closed.' };
+    }
+
+    const user = await this.getUserById(actingUserId);
+    const userName = user ? user.name : 'System';
+
+    // If the student never checked in (still Confirmed), this is a late/absent Cancellation.
+    // If they checked in, they completed their slot.
+    const targetStatus = booking.status === 'Confirmed' ? 'Cancelled' : 'Completed';
+
+    // 1. Update Supabase
+    try {
+      await supabase.from('bookings')
+        .update({ status: targetStatus })
+        .eq('id', bookingId);
+
+      if (booking.slotId) {
+        const { data: slot } = await supabase.from('slots').select('current_bookings, status').eq('id', booking.slotId).maybeSingle();
+        if (slot) {
+          const releaseSize = booking.isGroupBooking ? (booking.groupSize || 1) : 1;
+          const nextCount = Math.max(0, slot.current_bookings - releaseSize);
+          const nextStatus = nextCount === 0 ? 'Available' : 'Available'; // Reopen slot if below capacity
+          await supabase.from('slots')
+            .update({ status: nextStatus, current_bookings: nextCount })
+            .eq('id', booking.slotId);
+        }
+      }
+    } catch (e) {}
+
+    // 2. Update LocalStorage cache
+    try {
+      const raw = localStorage.getItem('sportsync_bookings');
+      if (raw) {
+        const list = JSON.parse(raw);
+        const idx = list.findIndex((b: any) => b.id === bookingId);
+        if (idx !== -1) {
+          list[idx].status = targetStatus;
+          localStorage.setItem('sportsync_bookings', JSON.stringify(list));
+        }
+      }
+    } catch (e) {}
+
+    // Promote waitlist if anyone was waiting for this slot
+    if (booking.slotId) {
+      await this.promoteWaitlist(booking.slotId);
+    }
+
+    let earlyMinutes = 0;
+    try {
+      const nowIST = getISTDate();
+      const end24 = convertTo24Hour(booking.endTime);
+      const slotEnd = new Date(`${booking.date}T${end24}:00`);
+      earlyMinutes = Math.floor((slotEnd.getTime() - nowIST.getTime()) / (1000 * 60));
+    } catch (e) {}
+
+    const actionVerb = targetStatus === 'Cancelled' ? 'cancelled (no-show/late)' : 'closed';
+    let logMsg = `Slot ${actionVerb} for ${booking.facilityName} (${booking.userName})`;
+    if (earlyMinutes > 0 && targetStatus === 'Completed') {
+      logMsg = `Slot closed ${earlyMinutes}m before the slot closes for ${booking.facilityName} (${booking.userName})`;
+    }
+
+    await this.log(actingUserId, userName, logMsg, 'Booking', bookingId);
+    return { 
+      success: true, 
+      message: targetStatus === 'Cancelled' ? 'Booking cancelled due to delay/no-show.' : 'Booking slot closed successfully!' 
+    };
   }
 
   // --- WAITLIST ---
@@ -593,7 +907,7 @@ export class SupabaseDatabase {
     const { data } = await supabase.from('admin_config').select('*');
     const configObj: any = {
       maxBookingsPerUserPerDay: 2,
-      advanceBookingWindowDays: 7,
+      advanceBookingWindowDays: 3,
       weatherThresholdAlert: 'Rainy'
     };
     if (data) {

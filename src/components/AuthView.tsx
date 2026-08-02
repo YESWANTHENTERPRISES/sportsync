@@ -102,9 +102,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         
         {/* Brand Banner */}
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-heading font-bold text-2xl shadow-lg shadow-blue-500/20 mx-auto">
-            S
-          </div>
+          <img src="/logo.png" alt="SportSync Logo" className="w-12 h-12 rounded-2xl object-cover shadow-lg shadow-blue-500/10 mx-auto" />
           <div>
             <h1 className="text-2xl font-heading font-bold text-white tracking-tight">SportSync VIT</h1>
             <p className="text-xs text-slate-450 uppercase tracking-widest font-semibold font-mono">

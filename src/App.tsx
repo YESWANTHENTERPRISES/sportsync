@@ -10,6 +10,7 @@ import { AdminDashboardView } from './components/AdminDashboardView';
 import { AdminReportsView } from './components/AdminReportsView';
 import { AdminManagersView } from './components/AdminManagersView';
 import { AuthView } from './components/AuthView';
+import { BookingVerificationPage } from './components/BookingVerificationPage';
 
 import { 
   MockDatabase, 
@@ -38,6 +39,13 @@ export default function App() {
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   const [adminConfig, setAdminConfig] = useState<AdminConfig | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+
+  // --- SCAN & VERIFICATION STATES ---
+  const [verifiedBooking, setVerifiedBooking] = useState<Booking | null>(null);
+  const [verifiedStudent, setVerifiedStudent] = useState<UserProfile | null>(null);
+  const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [showVerificationModal, setShowVerificationModal] = useState<boolean>(false);
 
   // --- UI SYSTEM STATES ---
   const [activeTab, setActiveTab] = useState<string>('landing');
@@ -109,6 +117,37 @@ export default function App() {
     // Refresh weather details every 10 minutes
     const weatherInterval = setInterval(initWeather, 600000);
     return () => clearInterval(weatherInterval);
+  }, []);
+
+  // QR Code scanned parameter listener
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const bookingId = params.get('verifyBooking');
+    if (bookingId) {
+      const loadVerification = async () => {
+        setIsVerifying(true);
+        setVerificationError(null);
+        setShowVerificationModal(true);
+        try {
+          const booking = await MockDatabase.getBookingById(bookingId);
+          if (booking) {
+            setVerifiedBooking(booking);
+            const studentProfile = await MockDatabase.getUserById(booking.userId);
+            if (studentProfile) {
+              setVerifiedStudent(studentProfile);
+            }
+          } else {
+            setVerificationError('No active booking reservation matches this QR signature.');
+          }
+        } catch (err: any) {
+          console.error(err);
+          setVerificationError(err.message || 'Error occurred while auditing QR code pass.');
+        } finally {
+          setIsVerifying(false);
+        }
+      };
+      loadVerification();
+    }
   }, []);
 
   // Show a toast message helper
@@ -418,6 +457,48 @@ export default function App() {
     );
   }
 
+  // Standalone Verification Page View (Gate Checkpoint)
+  if (showVerificationModal) {
+    return (
+      <BookingVerificationPage
+        booking={verifiedBooking}
+        student={verifiedStudent}
+        loading={isVerifying}
+        error={verificationError}
+        currentUser={currentUser}
+        onClose={() => {
+          setShowVerificationModal(false);
+          const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+          window.history.pushState({ path: newUrl }, '', newUrl);
+        }}
+        onCheckIn={async (bookingId) => {
+          if (!currentUser) return;
+          const res = await MockDatabase.checkInBooking(bookingId, currentUser.id);
+          if (res.success) {
+            showToast(res.message, 'success');
+            const updated = await MockDatabase.getBookingById(bookingId);
+            if (updated) setVerifiedBooking(updated);
+            await syncLocalStates();
+          } else {
+            showToast(res.message, 'error');
+          }
+        }}
+        onCloseSlot={async (bookingId) => {
+          if (!currentUser) return;
+          const res = await MockDatabase.closeBookingSlot(bookingId, currentUser.id);
+          if (res.success) {
+            showToast(res.message, 'success');
+            const updated = await MockDatabase.getBookingById(bookingId);
+            if (updated) setVerifiedBooking(updated);
+            await syncLocalStates();
+          } else {
+            showToast(res.message, 'error');
+          }
+        }}
+      />
+    );
+  }
+
   if (!currentUser) {
     return (
       <div className="relative">
@@ -429,6 +510,7 @@ export default function App() {
           }}
           showToast={showToast}
         />
+
         {/* Floating Toast Notification manager */}
         {toast && (
           <div className="fixed bottom-6 right-6 z-55 max-w-sm w-full bg-[#1E2640] border border-slate-700 rounded-2xl p-4 shadow-2xl animate-slide-up flex items-start gap-3">
@@ -465,7 +547,20 @@ export default function App() {
         currentUser={currentUser}
         onLogout={handleLogout}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={(q) => {
+          setSearchQuery(q);
+          if (q.trim().length > 0) {
+            setSelectedFacility(null);
+            if (activeTab !== 'facilities' && activeTab !== 'slot-booking') {
+              setActiveTab('facilities');
+            }
+          }
+        }}
+        facilities={facilities}
+        onSelectFacility={(fac) => {
+          setSelectedFacility(fac);
+          setActiveTab('facilities');
+        }}
         onNavigate={(tab) => {
           setSelectedFacility(null);
           setActiveTab(tab);

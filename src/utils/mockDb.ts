@@ -62,7 +62,7 @@ export interface Booking {
   startTime: string;
   endTime: string;
   bookedAt: string;
-  status: 'Confirmed' | 'Cancelled' | 'Completed';
+  status: 'Confirmed' | 'Cancelled' | 'Completed' | 'Checked-In';
   isGroupBooking: boolean;
   groupSize: number;
   groupMembers?: string[]; // student names
@@ -102,7 +102,7 @@ export interface AdminConfig {
 // Default initial config
 const DEFAULT_CONFIG: AdminConfig = {
   maxBookingsPerUserPerDay: 2,
-  advanceBookingWindowDays: 7,
+  advanceBookingWindowDays: 3,
   weatherThresholdAlert: 'Rainy',
 };
 
@@ -154,7 +154,7 @@ const INITIAL_USERS: UserProfile[] = [
   }
 ];
 
-const INITIAL_FACILITIES: SportFacility[] = [
+export const INITIAL_FACILITIES: SportFacility[] = [
   {
     id: 'fac-bad-in-1',
     name: 'MG Indoor Badminton Court 1',
@@ -242,7 +242,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Main Sports Field',
     courtNumber: 'Main Oval',
     capacity: 22,
-    photoUrl: 'https://images.unsplash.com/photo-1531415080290-bc98529c1133?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/cricket.png',
     status: 'Active',
   },
   {
@@ -252,7 +252,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Main Sports Field Area',
     courtNumber: 'Net 1',
     capacity: 6,
-    photoUrl: 'https://images.unsplash.com/photo-1531415080290-bc98545ab5fc?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/cricket.png',
     status: 'Active',
   },
   {
@@ -262,7 +262,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Main Sports Field Area',
     courtNumber: 'Net 2',
     capacity: 6,
-    photoUrl: 'https://images.unsplash.com/photo-1531415080290-bc98545ab5fc?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/cricket.png',
     status: 'Active',
   },
   {
@@ -272,7 +272,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Main Sports Field Area',
     courtNumber: 'Net 3',
     capacity: 6,
-    photoUrl: 'https://images.unsplash.com/photo-1531415080290-bc98545ab5fc?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/cricket.png',
     status: 'Active',
   },
   {
@@ -412,7 +412,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Main Sports Ground',
     courtNumber: 'Court 1',
     capacity: 14,
-    photoUrl: 'https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/handball.png',
     status: 'Active',
   },
   {
@@ -422,7 +422,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Main Sports Ground',
     courtNumber: 'Court 2',
     capacity: 14,
-    photoUrl: 'https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/handball.png',
     status: 'Active',
   },
   {
@@ -472,7 +472,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Indoor Recreation Zone',
     courtNumber: 'Board 1',
     capacity: 4,
-    photoUrl: 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/carrom.png',
     status: 'Active',
   },
   {
@@ -482,7 +482,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Indoor Recreation Zone',
     courtNumber: 'Board 2',
     capacity: 4,
-    photoUrl: 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/carrom.png',
     status: 'Active',
   },
   {
@@ -492,7 +492,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Indoor Recreation Zone',
     courtNumber: 'Board 3',
     capacity: 4,
-    photoUrl: 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/carrom.png',
     status: 'Active',
   },
   {
@@ -502,7 +502,7 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Indoor Recreation Zone',
     courtNumber: 'Board 4',
     capacity: 4,
-    photoUrl: 'https://images.unsplash.com/photo-1611195974226-a6a9be9dd763?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/carrom.png',
     status: 'Active',
   },
   {
@@ -512,34 +512,91 @@ const INITIAL_FACILITIES: SportFacility[] = [
     location: 'Main Sports Ground',
     courtNumber: 'Court 1',
     capacity: 14,
-    photoUrl: 'https://images.unsplash.com/photo-1592656094270-b9bd29d79998?auto=format&fit=crop&q=80&w=600',
+    photoUrl: '/throwball.png',
     status: 'Active',
   }
 ];
 
-// Helper to format date
-export const getOffsetDateString = (offsetDays: number): string => {
-  const d = new Date();
+// Helper to get current Date in Indian Standard Time (IST)
+export const getISTDate = (): Date => {
+  const now = new Date();
+  // IST offset is UTC+5:30 = +330 minutes
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  return new Date(utc + (330 * 60000));
+};
+
+// Helper to format date in YYYY-MM-DD (IST)
+export const getOffsetDateString = (offsetDays: number = 0): string => {
+  const d = getISTDate();
   d.setDate(d.getDate() + offsetDays);
   return d.toISOString().split('T')[0];
 };
 
+// Convert 24-hour HH:mm to 12-hour AM/PM format
+export const formatTo12Hour = (timeStr: string): string => {
+  if (!timeStr) return '';
+  if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  const hStr = hours < 10 ? `0${hours}` : `${hours}`;
+  return `${hStr}:${minutes} ${ampm}`;
+};
+
+// Convert 12-hour or 24-hour time string to 24-hour HH:mm string for Date calculations
+export const convertTo24Hour = (timeStr: string): string => {
+  if (!timeStr) return '00:00';
+  const trimmed = timeStr.trim().toUpperCase();
+  if (!trimmed.includes('AM') && !trimmed.includes('PM')) {
+    return trimmed.padStart(5, '0');
+  }
+  const isPM = trimmed.includes('PM');
+  const isAM = trimmed.includes('AM');
+  const cleanStr = trimmed.replace('AM', '').replace('PM', '').trim();
+  const parts = cleanStr.split(':');
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1] || '00';
+  if (isPM && hours < 12) hours += 12;
+  if (isAM && hours === 12) hours = 0;
+  const hStr = hours < 10 ? `0${hours}` : `${hours}`;
+  return `${hStr}:${minutes}`;
+};
+
 export const TIME_SLOTS = [
-  { start: '06:00', end: '07:00' },
-  { start: '07:00', end: '08:00' },
-  { start: '08:00', end: '09:00' },
-  { start: '09:00', end: '10:00' },
-  { start: '16:00', end: '17:00' },
-  { start: '17:00', end: '18:00' },
-  { start: '18:00', end: '19:00' },
-  { start: '19:00', end: '20:00' },
-  { start: '20:00', end: '21:00' },
+  // Morning 1-Hour Slots (07:00 AM - 12:00 PM)
+  { start: '07:00 AM', end: '08:00 AM' },
+  { start: '08:00 AM', end: '09:00 AM' },
+  { start: '09:00 AM', end: '10:00 AM' },
+  { start: '10:00 AM', end: '11:00 AM' },
+  { start: '11:00 AM', end: '12:00 PM' },
+  
+  // AFTERNOON BREAK: 12:30 PM to 02:00 PM - EXCLUDED / NO SLOTS AVAILABLE
+  
+  // Afternoon & Evening 1-Hour Slots (02:00 PM - 08:00 PM)
+  { start: '02:00 PM', end: '03:00 PM' },
+  { start: '03:00 PM', end: '04:00 PM' },
+  { start: '04:00 PM', end: '05:00 PM' },
+  { start: '05:00 PM', end: '06:00 PM' },
+  { start: '06:00 PM', end: '07:00 PM' },
+  { start: '07:00 PM', end: '08:00 PM' },
 ];
 
 export const MOCK_WEATHER_REPORTS = [
-  { time: 'Morning (06:00 - 10:00)', temp: '28°C', condition: 'Sunny', icon: '☀️', advisory: 'Clear skies. Perfect for outdoor sports!' },
-  { time: 'Evening (16:00 - 21:00)', temp: '26°C', condition: 'Rainy', icon: '🌧️', advisory: '⚠️ Rain expected — outdoor courts may close' },
+  { time: 'Morning (07:00 AM - 12:00 PM)', temp: '28°C', condition: 'Sunny', icon: '☀️', advisory: 'Clear skies. Perfect for outdoor sports!' },
+  { time: 'Evening (02:00 PM - 08:00 PM)', temp: '26°C', condition: 'Rainy', icon: '🌧️', advisory: '⚠️ Rain expected — outdoor courts may close' },
 ];
 
 import { SupabaseDatabase } from './supabaseDb';
-export const MockDatabase = SupabaseDatabase;
+export const MockDatabase = new Proxy(class {}, {
+  get(target, prop) {
+    return (SupabaseDatabase as any)[prop];
+  },
+  set(target, prop, value) {
+    (SupabaseDatabase as any)[prop] = value;
+    return true;
+  }
+}) as any;

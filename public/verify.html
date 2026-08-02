@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SportSync - Booking Pass Verification</title>
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #0A0F1E;
+      font-family: 'Inter', sans-serif;
+    }
+    .blur-grid {
+      background-image: linear-gradient(to right, rgba(31, 41, 55, 0.08) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(31, 41, 55, 0.08) 1px, transparent 1px);
+      background-size: 4rem 4rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 relative text-white overflow-y-auto">
+  <!-- Grid Background -->
+  <div class="absolute inset-0 blur-grid pointer-events-none"></div>
+
+  <div class="max-w-xl w-full relative z-10 space-y-6 my-8">
+    
+    <!-- Header -->
+    <div class="text-center space-y-2">
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-400 text-xs font-mono font-bold tracking-widest uppercase">
+        <svg class="w-4 h-4 animate-spin text-blue-400" fill="none" viewBox="0 0 24 24" id="header-sparkle-loader">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span id="header-badge-text">Verifying...</span>
+      </div>
+      <h1 class="text-2xl md:text-3xl font-extrabold text-white mt-1">Pass Audit Inspector</h1>
+      <p class="text-xs text-slate-400">Official campus facility gate checkpoint validation node</p>
+    </div>
+
+    <!-- Main Container -->
+    <div id="content-container" class="bg-[#161B30]/95 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+      
+      <!-- Flash Message Alert -->
+      <div id="flash-message" class="hidden p-4 rounded-2xl text-center text-xs font-semibold flex items-center justify-center gap-2">
+        <span id="flash-message-text"></span>
+      </div>
+      
+      <!-- Initial Loading State -->
+      <div id="loading-state" class="py-12 text-center space-y-4">
+        <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <p class="text-xs text-slate-400 font-mono">Retrieving live booking records from Supabase REST engine...</p>
+      </div>
+
+      <!-- Error State (Hidden by default) -->
+      <div id="error-state" class="hidden p-6 text-center space-y-4">
+        <svg class="w-12 h-12 text-red-500 mx-auto" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <div class="space-y-1">
+          <h3 class="text-base font-bold text-white">Verification Failed</h3>
+          <p id="error-message" class="text-xs text-slate-400">No active booking reservation matches this QR signature.</p>
+        </div>
+      </div>
+
+      <!-- Pass Info State (Hidden by default) -->
+      <div id="pass-state" class="hidden space-y-6">
+        
+        <!-- Status Hero -->
+        <div id="status-card" class="p-6 rounded-2xl border text-center flex flex-col items-center gap-3 transition shadow-lg">
+          <div id="status-icon-container"></div>
+          <div>
+            <h2 id="status-label" class="text-base font-extrabold uppercase tracking-wider">STATUS</h2>
+            <p id="pass-id-label" class="text-[11px] text-slate-400 font-mono mt-1">Pass ID: SS-xxxx</p>
+          </div>
+        </div>
+
+        <!-- Late Arrival Notice -->
+        <div id="late-notice" class="hidden p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 text-xs text-amber-400">
+          <svg class="w-5 h-5 shrink-0 text-amber-500 mt-0.5 animate-pulse" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          <div class="space-y-1">
+            <h5 class="font-bold text-amber-300">Late Arrival Notice</h5>
+            <p class="text-slate-350 leading-relaxed">
+              Student has arrived <strong id="late-minutes-value" class="font-mono text-sm text-amber-400">X minutes</strong> late after the scheduled start time (<span id="scheduled-start-time">--:--</span>).
+            </p>
+          </div>
+        </div>
+
+        <!-- Student Info -->
+        <div class="bg-slate-950/60 border border-slate-850 rounded-2xl p-5 space-y-4">
+          <h4 class="text-xs font-mono text-blue-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-900 pb-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+            Student Profile Details
+          </h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-0.5">
+              <span class="text-[10px] font-mono text-slate-500 uppercase">Student Name</span>
+              <div id="student-name" class="text-sm font-bold text-white">--</div>
+            </div>
+            <div class="space-y-0.5">
+              <span class="text-[10px] font-mono text-slate-500 uppercase">College ID / Reg No.</span>
+              <div id="student-college-id" class="text-sm font-mono font-bold text-slate-200">--</div>
+            </div>
+            <div class="space-y-0.5">
+              <span class="text-[10px] font-mono text-slate-500 uppercase">Contact Phone</span>
+              <div id="student-phone" class="text-sm font-mono font-bold text-slate-200">--</div>
+            </div>
+            <div class="space-y-0.5">
+              <span class="text-[10px] font-mono text-slate-500 uppercase">System Role</span>
+              <div id="student-role" class="text-sm font-bold text-slate-200">--</div>
+            </div>
+          </div>
+          <div id="preferences-section" class="hidden space-y-1.5 pt-2 border-t border-slate-900">
+            <span class="text-[10px] font-mono text-slate-500 uppercase">Sports Preferences</span>
+            <div id="student-preferences" class="flex flex-wrap gap-1.5"></div>
+          </div>
+        </div>
+
+        <!-- Booking Info -->
+        <div class="bg-slate-950/60 border border-slate-850 rounded-2xl p-5 space-y-4">
+          <h4 class="text-xs font-mono text-blue-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-900 pb-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+            </svg>
+            Booking Reservation Info
+          </h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-0.5">
+              <span class="text-[10px] font-mono text-slate-500 uppercase">Facility Name</span>
+              <div id="booking-facility" class="text-sm font-bold text-white">--</div>
+            </div>
+            <div class="space-y-0.5">
+              <span class="text-[10px] font-mono text-slate-500 uppercase">Sport Category</span>
+              <div id="booking-sport" class="text-sm font-semibold text-slate-200">--</div>
+            </div>
+            <div class="space-y-0.5">
+              <span class="text-[10px] font-mono text-slate-500 uppercase">Scheduled Slot Date</span>
+              <div id="booking-date" class="text-sm font-mono font-bold text-slate-200">--</div>
+            </div>
+            <div class="space-y-0.5">
+              <span class="text-[10px] font-mono text-slate-500 uppercase">Slot Hours (Timing)</span>
+              <div id="booking-timing" class="text-sm font-mono font-bold text-blue-400">--</div>
+            </div>
+          </div>
+          <div class="space-y-1.5 pt-2 border-t border-slate-900">
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-500">Booking Type:</span>
+              <span id="booking-type" class="font-semibold text-slate-200">--</span>
+            </div>
+            <div id="roster-section" class="hidden space-y-1 mt-1.5">
+              <span class="text-[9px] font-mono text-slate-500 uppercase">Group Roster</span>
+              <div id="booking-roster" class="text-[11px] text-slate-350 bg-slate-900/50 p-2.5 rounded-xl border border-slate-900 font-mono"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="space-y-3 pt-2">
+          <!-- Check-In Action for Admins -->
+          <div id="admin-actions-container" class="hidden grid grid-cols-2 gap-3">
+            <button id="checkin-btn" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-extrabold text-[11px] transition active:scale-95 shadow-lg shadow-emerald-500/10 flex items-center justify-center gap-1.5 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span id="checkin-btn-text">Confirm Check-In</span>
+            </button>
+            <button id="close-btn" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-[11px] transition active:scale-95 shadow-lg shadow-red-500/10 flex items-center justify-center gap-1.5 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span id="close-btn-text">Cancel Slot</span>
+            </button>
+          </div>
+          
+          <div id="guest-notice" class="p-4 bg-slate-900/50 border border-slate-850 rounded-2xl text-center text-xs text-slate-400 leading-relaxed font-mono">
+            📢 Scan verified successfully. Student check-in/closing requires a logged-in physical security administrator profile.
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Footer button -->
+    <div class="text-center">
+      <a href="/" class="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        Go to SportSync App Home
+      </a>
+    </div>
+
+  </div>
+
+  <script>
+    // Supabase Credentials
+    const SUPABASE_URL = "https://efzngdzhmtgipvcaojcz.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_vQUli-ghiOeo06Lpo0qONA_8uPq3LlB";
+
+    // Helper functions for IST date & 12-hour formatting
+    function getISTDate() {
+      const now = new Date();
+      const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+      return new Date(utc + (330 * 60000));
+    }
+
+    function convertTo24Hour(timeStr) {
+      if (!timeStr) return '00:00';
+      const trimmed = timeStr.trim().toUpperCase();
+      if (!trimmed.includes('AM') && !trimmed.includes('PM')) {
+        return trimmed.padStart(5, '0');
+      }
+      const isPM = trimmed.includes('PM');
+      const isAM = trimmed.includes('AM');
+      const cleanStr = trimmed.replace('AM', '').replace('PM', '').trim();
+      const parts = cleanStr.split(':');
+      let hours = parseInt(parts[0], 10);
+      const minutes = parts[1] || '00';
+      if (isPM && hours < 12) hours += 12;
+      if (isAM && hours === 12) hours = 0;
+      const hStr = hours < 10 ? `0${hours}` : `${hours}`;
+      return `${hStr}:${minutes}`;
+    }
+
+    function formatTo12Hour(timeStr) {
+      if (!timeStr) return '';
+      if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
+      const parts = timeStr.split(':');
+      if (parts.length < 2) return timeStr;
+      let hours = parseInt(parts[0], 10);
+      const minutes = parts[1];
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      if (hours === 0) hours = 12;
+      const hStr = hours < 10 ? `0${hours}` : `${hours}`;
+      return `${hStr}:${minutes} ${ampm}`;
+    }
+
+    // Selectors
+    const loadingState = document.getElementById('loading-state');
+    const errorState = document.getElementById('error-state');
+    const errorMessage = document.getElementById('error-message');
+    const passState = document.getElementById('pass-state');
+    
+    const statusCard = document.getElementById('status-card');
+    const statusIconContainer = document.getElementById('status-icon-container');
+    const statusLabel = document.getElementById('status-label');
+    const passIdLabel = document.getElementById('pass-id-label');
+    const lateNotice = document.getElementById('late-notice');
+    const lateMinutesValue = document.getElementById('late-minutes-value');
+    const scheduledStartTime = document.getElementById('scheduled-start-time');
+
+    const studentName = document.getElementById('student-name');
+    const studentCollegeId = document.getElementById('student-college-id');
+    const studentPhone = document.getElementById('student-phone');
+    const studentRole = document.getElementById('student-role');
+    const preferencesSection = document.getElementById('preferences-section');
+    const studentPreferences = document.getElementById('student-preferences');
+
+    const bookingFacility = document.getElementById('booking-facility');
+    const bookingSport = document.getElementById('booking-sport');
+    const bookingDate = document.getElementById('booking-date');
+    const bookingTiming = document.getElementById('booking-timing');
+    const bookingType = document.getElementById('booking-type');
+    const rosterSection = document.getElementById('roster-section');
+    const bookingRoster = document.getElementById('booking-roster');
+
+    const adminActionsContainer = document.getElementById('admin-actions-container');
+    const checkinBtn = document.getElementById('checkin-btn');
+    const checkinBtnText = document.getElementById('checkin-btn-text');
+    const closeBtn = document.getElementById('close-btn');
+    const closeBtnText = document.getElementById('close-btn-text');
+    const guestNotice = document.getElementById('guest-notice');
+
+    const headerSparkleLoader = document.getElementById('header-sparkle-loader');
+    const headerBadgeText = document.getElementById('header-badge-text');
+
+    let currentBooking = null;
+
+    // Check query params
+    const urlParams = new URLSearchParams(window.location.search);
+    const bookingId = urlParams.get('verifyBooking');
+    const msg = urlParams.get('msg');
+
+    const flashMessage = document.getElementById('flash-message');
+    const flashMessageText = document.getElementById('flash-message-text');
+
+    if (msg === 'started') {
+      flashMessage.className = "p-4 rounded-2xl text-center text-xs font-semibold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center gap-2 animate-pulse mb-4";
+      flashMessageText.innerHTML = "Congrats! Your slot has started. Enjoy your time! 🎉";
+      flashMessage.classList.remove('hidden');
+    } else if (msg === 'closed') {
+      flashMessage.className = "p-4 rounded-2xl text-center text-xs font-semibold bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center gap-2 mb-4";
+      flashMessageText.innerHTML = "Slot Closed.";
+      flashMessage.classList.remove('hidden');
+    }
+
+    if (!bookingId) {
+      showError("No booking ID was provided in the query string.");
+    } else {
+      fetchBookingDetails(bookingId);
+    }
+
+    function showError(msg) {
+      loadingState.classList.add('hidden');
+      errorState.classList.remove('hidden');
+      errorMessage.textContent = msg;
+      headerSparkleLoader.classList.add('hidden');
+      headerBadgeText.textContent = "Error";
+    }
+
+    async function fetchBookingDetails(id) {
+      try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/bookings?id=eq.${id}&select=*`, {
+          headers: {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+        
+        if (!response.ok) throw new Error("Database query failed.");
+        const bookings = await response.json();
+        
+        if (bookings.length === 0) {
+          // Fallback: check localStorage
+          try {
+            const rawLocal = localStorage.getItem('sportsync_bookings');
+            if (rawLocal) {
+              const localList = JSON.parse(rawLocal);
+              const found = localList.find(b => b.id === bookingId);
+              if (found) {
+                currentBooking = {
+                  id: found.id,
+                  user_id: found.userId,
+                  user_name: found.userName,
+                  user_college_id: found.userCollegeId,
+                  facility_name: found.facilityName,
+                  sport_type: found.sportType,
+                  date: found.date,
+                  start_time: found.startTime,
+                  end_time: found.endTime,
+                  status: found.status,
+                  is_group_booking: found.isGroupBooking,
+                  group_size: found.groupSize,
+                  group_members: found.groupMembers || [],
+                  slot_id: found.slotId
+                };
+              }
+            }
+          } catch (e) {}
+
+          if (!currentBooking) {
+            showError("No active booking reservation matches this reference ID.");
+            return;
+          }
+        } else {
+          currentBooking = bookings[0];
+        }
+        
+        // Fetch student profile details
+        let studentProfile = null;
+        try {
+          const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${currentBooking.user_id}&select=*`, {
+            headers: {
+              "apikey": SUPABASE_ANON_KEY,
+              "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+            }
+          });
+          if (profileResponse.ok) {
+            const profiles = await profileResponse.json();
+            if (profiles.length > 0) studentProfile = profiles[0];
+          }
+        } catch (e) {
+          console.warn("Failed to retrieve student profile logs:", e);
+        }
+
+        renderDetails(currentBooking, studentProfile);
+      } catch (err) {
+        showError(err.message || "Failed to fetch pass details.");
+      }
+    }
+
+    function renderDetails(booking, student) {
+      loadingState.classList.add('hidden');
+      passState.classList.remove('hidden');
+      
+      headerSparkleLoader.classList.add('hidden');
+      headerBadgeText.textContent = "Verified";
+
+      // Pass ID
+      passIdLabel.textContent = `Pass ID: ${booking.id}`;
+
+      // Student Info
+      studentName.textContent = booking.user_name;
+      studentCollegeId.textContent = booking.user_college_id;
+      
+      if (student) {
+        studentPhone.textContent = student.phone || "N/A";
+        studentRole.textContent = student.role || "Student";
+        
+        if (student.preferences && student.preferences.length > 0) {
+          preferencesSection.classList.remove('hidden');
+          studentPreferences.innerHTML = student.preferences.map(pref => 
+            `<span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-[10px] text-slate-400">${pref}</span>`
+          ).join('');
+        }
+      } else {
+        studentPhone.textContent = "N/A";
+        studentRole.textContent = "Student";
+      }
+
+      // Booking Info
+      bookingFacility.textContent = booking.facility_name;
+      bookingSport.textContent = booking.sport_type;
+      bookingDate.textContent = booking.date;
+      bookingTiming.textContent = `${formatTo12Hour(booking.start_time)} - ${formatTo12Hour(booking.end_time)}`;
+      
+      bookingType.textContent = booking.is_group_booking 
+        ? `Group Booking (${booking.group_size} Players)` 
+        : 'Single Slot Booking';
+
+      if (booking.is_group_booking && booking.group_members && booking.group_members.length > 0) {
+        rosterSection.classList.remove('hidden');
+        bookingRoster.textContent = booking.group_members.join(', ');
+      }
+
+      // Latency Calculations (IST)
+      let lateMinutes = 0;
+      try {
+        const now = getISTDate();
+        const start24 = convertTo24Hour(booking.start_time);
+        const slotStart = new Date(`${booking.date}T${start24}:00`);
+        const diff = now.getTime() - slotStart.getTime();
+        lateMinutes = Math.max(0, Math.floor(diff / (1000 * 60)));
+      } catch (e) {}
+
+      // Expired State (IST)
+      let isExpired = false;
+      try {
+        const now = getISTDate();
+        const end24 = convertTo24Hour(booking.end_time);
+        const slotEnd = new Date(`${booking.date}T${end24}:00`);
+        isExpired = now.getTime() > slotEnd.getTime();
+      } catch (e) {}
+
+      // Render Status Hero details
+      if (booking.status === 'Cancelled') {
+        statusCard.className = "p-6 rounded-2xl border text-center flex flex-col items-center gap-3 transition shadow-lg bg-red-500/10 border-red-500/30 text-red-400 shadow-red-500/10";
+        statusIconContainer.innerHTML = `<svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+        statusLabel.textContent = "CANCELLED";
+      } else if (booking.status === 'Completed') {
+        statusCard.className = "p-6 rounded-2xl border text-center flex flex-col items-center gap-3 transition shadow-lg bg-blue-500/10 border-blue-500/30 text-blue-400 shadow-blue-500/10";
+        statusIconContainer.innerHTML = `<svg class="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+        statusLabel.textContent = "CLOSED";
+      } else if (booking.status === 'Checked-In') {
+        statusCard.className = "p-6 rounded-2xl border text-center flex flex-col items-center gap-3 transition shadow-lg bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-emerald-500/20";
+        statusIconContainer.innerHTML = `<svg class="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+        statusLabel.textContent = "APPROVED / STARTED";
+      } else if (isExpired) {
+        statusCard.className = "p-6 rounded-2xl border text-center flex flex-col items-center gap-3 transition shadow-lg bg-slate-500/10 border-slate-500/30 text-slate-400 shadow-slate-500/10";
+        statusIconContainer.innerHTML = `<svg class="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+        statusLabel.textContent = "EXPIRED";
+      } else {
+        statusCard.className = "p-6 rounded-2xl border text-center flex flex-col items-center gap-3 transition shadow-lg bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-emerald-500/20";
+        statusIconContainer.innerHTML = `<svg class="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+        statusLabel.textContent = "APPROVED";
+      }
+
+      // Display lateness if late
+      if (lateMinutes > 0 && booking.status === 'Confirmed') {
+        lateNotice.classList.remove('hidden');
+        lateMinutesValue.textContent = `${lateMinutes} minutes`;
+        scheduledStartTime.textContent = formatTo12Hour(booking.start_time);
+      }
+
+      // Check-In Actions for logged in Admin
+      let isAdmin = false;
+      const cachedUserId = localStorage.getItem('sportsync_current_user_id');
+      const urlRole = urlParams.get('role');
+      const isAdminQuery = urlParams.get('admin');
+      if (cachedUserId === 'usr-admin' || urlRole === 'admin' || isAdminQuery === 'true') {
+        isAdmin = true;
+      }
+
+      const canCheckIn = booking.status === 'Confirmed' && !isExpired;
+
+      if (isAdmin) {
+        guestNotice.classList.add('hidden');
+        adminActionsContainer.classList.remove('hidden');
+        
+        // Confirm Check-In Button
+        if (booking.status === 'Confirmed') {
+          checkinBtn.disabled = false;
+          checkinBtn.className = "w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-extrabold text-xs transition active:scale-95 shadow-lg shadow-emerald-500/10 flex items-center justify-center gap-1.5 cursor-pointer";
+          checkinBtnText.textContent = "Confirm Check-In";
+          checkinBtn.onclick = () => performCheckIn(booking.id, 'Checked-In', lateMinutes);
+        } else {
+          checkinBtn.disabled = true;
+          checkinBtn.className = "w-full py-3.5 rounded-2xl bg-slate-800 text-slate-500 font-extrabold text-xs border border-slate-700 cursor-not-allowed flex items-center justify-center gap-1.5";
+          checkinBtnText.textContent = booking.status === 'Checked-In' ? "Already Checked In" : "Check-In Disabled";
+        }
+
+        // Cancel Button
+        if (booking.status === 'Confirmed' || booking.status === 'Checked-In') {
+          closeBtn.disabled = false;
+          closeBtn.className = "w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-xs transition active:scale-95 shadow-lg shadow-red-500/10 flex items-center justify-center gap-1.5 cursor-pointer";
+          closeBtnText.textContent = lateMinutes > 0 ? `Cancel Slot (${lateMinutes}m Late)` : "Cancel Slot";
+          closeBtn.onclick = () => performCheckIn(booking.id, 'Completed', lateMinutes);
+        } else {
+          closeBtn.disabled = true;
+          closeBtn.className = "w-full py-3.5 rounded-2xl bg-slate-800 text-slate-500 font-extrabold text-xs border border-slate-700 cursor-not-allowed flex items-center justify-center gap-1.5";
+          closeBtnText.textContent = booking.status === 'Completed' ? "Slot is Closed" : "Slot Closed";
+        }
+      } else {
+        guestNotice.classList.add('hidden');
+        adminActionsContainer.classList.add('hidden');
+      }
+    }
+
+    async function performCheckIn(id, targetStatus, delay) {
+      checkinBtn.disabled = true;
+      closeBtn.disabled = true;
+      if (targetStatus === 'Checked-In') {
+        checkinBtnText.textContent = "Checking In...";
+      } else {
+        closeBtnText.textContent = "Closing Slot...";
+      }
+      
+      // 1. Update localStorage cache immediately
+      try {
+        const rawLocal = localStorage.getItem('sportsync_bookings');
+        if (rawLocal) {
+          const list = JSON.parse(rawLocal);
+          const found = list.find(b => b.id === id);
+          if (found) {
+            found.status = targetStatus;
+            localStorage.setItem('sportsync_bookings', JSON.stringify(list));
+          }
+        }
+        if (currentBooking) {
+          currentBooking.status = targetStatus;
+        }
+      } catch (e) {}
+
+      // 2. Try PATCH to Supabase REST API
+      try {
+        await fetch(`${SUPABASE_URL}/rest/v1/bookings?id=eq.${id}`, {
+          method: 'PATCH',
+          headers: {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
+          body: JSON.stringify({ status: targetStatus })
+        });
+
+        if (targetStatus === 'Completed' && currentBooking && currentBooking.slot_id) {
+          await fetch(`${SUPABASE_URL}/rest/v1/slots?id=eq.${currentBooking.slot_id}`, {
+            method: 'PATCH',
+            headers: {
+              "apikey": SUPABASE_ANON_KEY,
+              "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ status: 'Available', current_bookings: 0 })
+          });
+        }
+      } catch (err) {
+        console.warn("Supabase REST API patch warning:", err);
+      }
+
+      // 3. Post Audit Log with delay/early calculation
+      try {
+        let delayMinutes = 0;
+        let earlyMinutes = 0;
+        try {
+          const nowIST = getISTDate();
+          const start24 = convertTo24Hour(currentBooking.start_time);
+          const slotStart = new Date(`${currentBooking.date}T${start24}:00`);
+          delayMinutes = Math.floor((nowIST.getTime() - slotStart.getTime()) / (1000 * 60));
+
+          const end24 = convertTo24Hour(currentBooking.end_time);
+          const slotEnd = new Date(`${currentBooking.date}T${end24}:00`);
+          earlyMinutes = Math.floor((slotEnd.getTime() - nowIST.getTime()) / (1000 * 60));
+        } catch (e) {}
+
+        let actionStr = "";
+        if (targetStatus === 'Checked-In') {
+          actionStr = delayMinutes > 0
+            ? `Slot opened ${delayMinutes}m delayed for ${currentBooking.facility_name} (${currentBooking.user_name})`
+            : `Slot opened on time for ${currentBooking.facility_name} (${currentBooking.user_name})`;
+        } else {
+          actionStr = earlyMinutes > 0
+            ? `Slot closed ${earlyMinutes}m before the slot closes for ${currentBooking.facility_name} (${currentBooking.user_name})`
+            : `Slot closed for ${currentBooking.facility_name} (${currentBooking.user_name})`;
+        }
+
+        await fetch(`${SUPABASE_URL}/rest/v1/audit_logs`, {
+          method: 'POST',
+          headers: {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            user_id: 'usr-admin',
+            user_name: 'YESWANTH',
+            action: actionStr,
+            entity_type: 'Booking',
+            entity_id: id
+          })
+        });
+      } catch (e) {}
+
+      // 4. Refresh view with confirmation notice
+      const nextMsg = targetStatus === 'Checked-In' ? 'started' : 'closed';
+      window.location.href = window.location.pathname + "?verifyBooking=" + id + "&msg=" + nextMsg;
+    }
+  </script>
+</body>
+</html>

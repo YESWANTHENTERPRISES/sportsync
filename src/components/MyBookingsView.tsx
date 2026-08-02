@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Calendar, AlertCircle, X, ShieldAlert, CheckCircle2, ChevronRight } from 'lucide-react';
-import { Booking, UserProfile } from '../utils/mockDb';
+import QRCode from 'qrcode';
+import { Booking, UserProfile, formatTo12Hour, convertTo24Hour, getISTDate } from '../utils/mockDb';
 
 interface MyBookingsViewProps {
   bookings: Booking[];
@@ -9,15 +10,26 @@ interface MyBookingsViewProps {
 }
 
 // Helper to format remaining time
-const getRemainingTime = (dateStr: string, timeStr: string) => {
-  const targetStr = `${dateStr}T${timeStr}:00`;
-  const diff = new Date(targetStr).getTime() - Date.now();
+const getRemainingTime = (dateStr: string, startTimeStr: string, endTimeStr: string) => {
+  const start24 = convertTo24Hour(startTimeStr);
+  const end24 = convertTo24Hour(endTimeStr);
+  const nowIST = getISTDate();
+  const slotStart = new Date(`${dateStr}T${start24}:00`);
+  const slotEnd = new Date(`${dateStr}T${end24}:00`);
   
-  if (diff <= 0) return 'Started / Ended';
+  const diffStart = slotStart.getTime() - nowIST.getTime();
+  const diffEnd = slotEnd.getTime() - nowIST.getTime();
+
+  if (diffStart <= 0 && diffEnd > 0) {
+    return '🟢 Session in Progress';
+  }
+  if (diffEnd <= 0) {
+    return 'Session Ended';
+  }
   
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  const hours = Math.floor(diffStart / (1000 * 60 * 60));
+  const minutes = Math.floor((diffStart % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diffStart % (1000 * 60)) / 1000);
   
   if (hours > 0) {
     return `Starts in ${hours}h ${minutes}m`;
@@ -28,8 +40,9 @@ const getRemainingTime = (dateStr: string, timeStr: string) => {
 // Check if booking is cancelable (cancellations allowed up to 3 hours before start time)
 const isCancelable = (dateStr: string, timeStr: string, role: string) => {
   if (role !== 'Student') return true; // Admins / Staff bypass limits
-  const targetStr = `${dateStr}T${timeStr}:00`;
-  const diff = new Date(targetStr).getTime() - Date.now();
+  const start24 = convertTo24Hour(timeStr);
+  const targetStr = `${dateStr}T${start24}:00`;
+  const diff = new Date(targetStr).getTime() - getISTDate().getTime();
   const threeHours = 3 * 60 * 60 * 1000;
   return diff >= threeHours;
 };
@@ -42,6 +55,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'Upcoming' | 'Past' | 'Cancelled'>('Upcoming');
   const [selectedQRBooking, setSelectedQRBooking] = useState<Booking | null>(null);
   const [timeTicker, setTimeTicker] = useState<number>(Date.now());
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
   // Update countdown timers every second
   useEffect(() => {
@@ -51,21 +65,56 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  // Generate QR code when modal is opened
+  useEffect(() => {
+    if (selectedQRBooking) {
+      const generateQR = async () => {
+        try {
+          const origin = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? window.location.origin
+            : 'https://bookingpass.netlify.app';
+          const verificationUrl = `${origin}/verify.html?verifyBooking=${selectedQRBooking.id}`;
+
+          const url = await QRCode.toDataURL(verificationUrl, {
+            margin: 2,
+            width: 256,
+            color: {
+              dark: '#0A0F1E',
+              light: '#FFFFFF'
+            }
+          });
+          setQrCodeUrl(url);
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      generateQR();
+    } else {
+      setQrCodeUrl('');
+    }
+  }, [selectedQRBooking]);
+
   const filteredBookings = bookings
     .filter(b => b.userId === currentUser.id)
     .filter(b => {
-      const slotStart = new Date(`${b.date}T${b.startTime}:00`).getTime();
-      const isPast = slotStart < Date.now();
+      const end24 = convertTo24Hour(b.endTime);
+      const nowIST = getISTDate();
+      const slotEnd = new Date(`${b.date}T${end24}:00`);
+      const isPast = nowIST.getTime() > slotEnd.getTime() && b.status !== 'Checked-In';
       
       if (activeSubTab === 'Upcoming') {
-        return b.status === 'Confirmed' && !isPast;
+        return (b.status === 'Confirmed' || b.status === 'Checked-In') && !isPast;
       }
       if (activeSubTab === 'Past') {
-        return (b.status === 'Confirmed' && isPast) || b.status === 'Completed';
+        return b.status === 'Completed' || ((b.status === 'Confirmed' || b.status === 'Checked-In') && isPast);
       }
       return b.status === 'Cancelled';
     })
-    .sort((a, b) => new Date(`${a.date}T${a.startTime}:00`).getTime() - new Date(`${b.date}T${b.startTime}:00`).getTime());
+    .sort((a, b) => {
+      const a24 = convertTo24Hour(a.startTime);
+      const b24 = convertTo24Hour(b.startTime);
+      return new Date(`${a.date}T${a24}:00`).getTime() - new Date(`${b.date}T${b24}:00`).getTime();
+    });
 
   return (
     <div className="space-y-6 pb-12 animate-fade-in">
@@ -107,7 +156,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {filteredBookings.map(booking => {
             const cancelable = isCancelable(booking.date, booking.startTime, currentUser.role);
-            const remaining = getRemainingTime(booking.date, booking.startTime);
+            const remaining = getRemainingTime(booking.date, booking.startTime, booking.endTime);
             
             return (
               <div 
@@ -135,7 +184,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
                   <div className="p-3 bg-slate-950 border border-slate-850 rounded-xl space-y-2 text-xs">
                     <div className="flex items-center gap-2 text-slate-300 font-mono">
                       <Calendar className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{booking.date} | {booking.startTime} - {booking.endTime}</span>
+                      <span>{booking.date} | {formatTo12Hour(booking.startTime)} - {formatTo12Hour(booking.endTime)}</span>
                     </div>
                     {booking.isGroupBooking && (
                       <div className="flex items-center gap-2 text-slate-400">
@@ -202,7 +251,7 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
         <div className="fixed inset-0 z-50 bg-[#0A0F1E]/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1E2640] border border-slate-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-5 text-center">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <span className="text-xs font-mono font-bold text-blue-400">VIT Chennai Gate Pass</span>
+              <span className="text-xs font-mono font-bold text-blue-400">VIT Chennai Booking Pass</span>
               <button 
                 onClick={() => setSelectedQRBooking(null)}
                 className="text-slate-400 hover:text-white"
@@ -212,31 +261,14 @@ export const MyBookingsView: React.FC<MyBookingsViewProps> = ({
             </div>
 
             {/* QR Visual */}
-            <div className="p-4 bg-white rounded-xl w-48 h-48 mx-auto flex flex-col items-center justify-center gap-2 border border-slate-300 shadow-inner">
-              {/* Dynamic QR canvas replacement using SVG */}
-              <svg className="w-40 h-40" viewBox="0 0 100 100">
-                <rect width="100" height="100" fill="white" />
-                {/* Simulated QR Code patterns */}
-                <rect x="5" y="5" width="25" height="25" fill="#0A0F1E" />
-                <rect x="10" y="10" width="15" height="15" fill="white" />
-                <rect x="12" y="12" width="11" height="11" fill="#0A0F1E" />
-                
-                <rect x="70" y="5" width="25" height="25" fill="#0A0F1E" />
-                <rect x="75" y="10" width="15" height="15" fill="white" />
-                <rect x="77" y="12" width="11" height="11" fill="#0A0F1E" />
-
-                <rect x="5" y="70" width="25" height="25" fill="#0A0F1E" />
-                <rect x="10" y="75" width="15" height="15" fill="white" />
-                <rect x="12" y="77" width="11" height="11" fill="#0A0F1E" />
-
-                {/* Random blocks */}
-                <rect x="40" y="15" width="10" height="5" fill="#0A0F1E" />
-                <rect x="50" y="25" width="5" height="10" fill="#0A0F1E" />
-                <rect x="35" y="45" width="15" height="15" fill="#0A0F1E" />
-                <rect x="60" y="60" width="20" height="10" fill="#0A0F1E" />
-                <rect x="45" y="80" width="10" height="15" fill="#0A0F1E" />
-                <rect x="80" y="40" width="15" height="15" fill="#0A0F1E" />
-              </svg>
+            <div className="p-4 bg-white rounded-xl w-48 h-48 mx-auto flex flex-col items-center justify-center gap-1.5 border border-slate-300 shadow-inner">
+              {qrCodeUrl ? (
+                <img src={qrCodeUrl} alt="Booking QR Code Pass" className="w-38 h-38" />
+              ) : (
+                <div className="w-38 h-38 flex items-center justify-center text-slate-400 text-xs font-mono">
+                  Generating...
+                </div>
+              )}
               <span className="text-[8px] font-mono text-slate-500 font-bold">SCAN AT PHYSICAL CHECK-IN</span>
             </div>
 
