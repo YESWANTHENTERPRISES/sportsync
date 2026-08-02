@@ -637,7 +637,7 @@ export default function App() {
 
       {/* Spotlight Announcement Banner */}
       {showAnnouncement && activeAnnouncement && (
-        <div className="fixed top-20 right-6 z-50 max-w-sm w-full bg-gradient-to-br from-[#1E2640]/95 to-[#161B30]/95 border border-blue-500/30 rounded-2xl p-4 shadow-2xl flex items-start gap-3 backdrop-blur-md animate-slide-up">
+        <div className="fixed top-20 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-sm z-50 bg-gradient-to-br from-[#1E2640]/95 to-[#161B30]/95 border border-blue-500/30 rounded-2xl p-4 shadow-2xl flex items-start gap-3 backdrop-blur-md animate-slide-up">
           <div className="shrink-0 p-1.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-lg">
             <Megaphone className="w-4 h-4 text-blue-400" />
           </div>
