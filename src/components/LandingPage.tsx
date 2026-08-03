@@ -6,12 +6,14 @@ interface LandingPageProps {
   facilities: SportFacility[];
   onNavigate: (page: string) => void;
   totalBookings: number;
+  onSearchChange?: (q: string) => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   facilities,
   onNavigate,
-  totalBookings
+  totalBookings,
+  onSearchChange
 }) => {
   const sportCounts = facilities.reduce((acc, f) => {
     acc[f.sportType] = (acc[f.sportType] || 0) + 1;
@@ -100,7 +102,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           ].map(sport => (
             <div 
               key={sport.name}
-              onClick={() => onNavigate('facilities')}
+              onClick={() => {
+                if (onSearchChange) {
+                  onSearchChange(sport.name);
+                }
+                onNavigate('facilities');
+              }}
               className="relative overflow-hidden h-32 rounded-2xl border border-slate-800/80 hover:border-blue-500/50 transition duration-300 cursor-pointer flex flex-col items-center justify-center gap-2 text-center group shadow-md"
             >
               {/* Background Image */}

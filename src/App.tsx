@@ -12,6 +12,13 @@ import { AdminManagersView } from './components/AdminManagersView';
 import { AuthView } from './components/AuthView';
 import { BookingVerificationPage } from './components/BookingVerificationPage';
 
+// New View Imports
+import { AiAssistantView } from './components/AiAssistantView';
+import { CustomSportBookingView } from './components/CustomSportBookingView';
+import { CommunityBoardView } from './components/CommunityBoardView';
+import { TournamentView } from './components/TournamentView';
+import { AdminAiInsightsView } from './components/AdminAiInsightsView';
+
 import { 
   MockDatabase, 
   UserProfile, 
@@ -22,7 +29,10 @@ import {
   AuditLog, 
   AdminConfig,
   Announcement,
-  getOffsetDateString
+  getOffsetDateString,
+  CustomSportBooking,
+  Tournament,
+  JoinRequest
 } from './utils/mockDb';
 
 import { fetchLiveWeather, FullWeatherState } from './utils/weatherService';
@@ -39,6 +49,9 @@ export default function App() {
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   const [adminConfig, setAdminConfig] = useState<AdminConfig | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [customSports, setCustomSports] = useState<CustomSportBooking[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
 
   // --- SCAN & VERIFICATION STATES ---
   const [verifiedBooking, setVerifiedBooking] = useState<Booking | null>(null);
@@ -73,6 +86,9 @@ export default function App() {
     setBookings(await MockDatabase.getBookings());
     setWaitlist(await MockDatabase.getWaitlist());
     setAnnouncements(await MockDatabase.getAnnouncements());
+    setCustomSports(await MockDatabase.getCustomSports());
+    setTournaments(await MockDatabase.getTournaments());
+    setJoinRequests(await MockDatabase.getJoinRequests());
     const config = await MockDatabase.getAdminConfig();
     setAdminConfig(config);
     
@@ -164,6 +180,109 @@ export default function App() {
     setDismissedAnnouncementId(null);
     setShowAnnouncement(false);
     showToast('Successfully logged out.', 'info');
+  };
+
+  const handleJoinCustomMatch = async (eventId: string) => {
+    if (!currentUser) return;
+    const res = await MockDatabase.joinCustomSport(eventId, currentUser.name, currentUser.id);
+    if (res.success) {
+      showToast(res.message, 'success');
+    } else {
+      showToast(res.message, 'error');
+    }
+    await syncLocalStates();
+  };
+
+  const handleRegisterTournament = async (tournamentId: string, teamName: string) => {
+    if (!currentUser) return;
+    const res = await MockDatabase.registerForTournament(tournamentId, teamName, currentUser.id, currentUser.name);
+    if (res.success) {
+      showToast(res.message, 'success');
+    } else {
+      showToast(res.message, 'error');
+    }
+    await syncLocalStates();
+  };
+
+  const handleUpdateTournamentScore = async (tournamentId: string, matchId: string, s1: number, s2: number, summary: string) => {
+    if (!currentUser) return;
+    const res = await MockDatabase.updateTournamentMatchScore(tournamentId, matchId, s1, s2, summary, currentUser.id, currentUser.name);
+    if (res.success) {
+      showToast(res.message, 'success');
+    } else {
+      showToast(res.message, 'error');
+    }
+    await syncLocalStates();
+  };
+
+  const handleCreateTournament = async (trn: any) => {
+    if (!currentUser) return;
+    const res = await MockDatabase.createTournament(trn);
+    showToast(`Tournament "${res.name}" launched!`, 'success');
+    await syncLocalStates();
+  };
+
+  const handleCreateJoinRequest = async (eventId: string, message: string) => {
+    if (!currentUser) return;
+    await MockDatabase.createJoinRequest({
+      eventId,
+      requesterId: currentUser.id,
+      requesterName: currentUser.name,
+      registrationId: currentUser.collegeId,
+      message: message.trim() || undefined
+    });
+    showToast('Request to join match sent to organizer.', 'success');
+    await syncLocalStates();
+  };
+
+  const handleUpdateJoinRequestStatus = async (requestId: string, status: 'Accepted' | 'Declined') => {
+    if (!currentUser) return;
+    const res = await MockDatabase.updateJoinRequestStatus(requestId, status);
+    if (res.success) {
+      showToast(res.message, 'success');
+    } else {
+      showToast(res.message, 'error');
+    }
+    await syncLocalStates();
+  };
+
+  const handleUpdateCustomSportControls = async (eventId: string, stopAccepting: boolean, isFullOverride: boolean) => {
+    if (!currentUser) return;
+    const res = await MockDatabase.updateCustomSportControls(eventId, stopAccepting, isFullOverride);
+    if (res) {
+      showToast('Event player entry controls updated.', 'success');
+    }
+    await syncLocalStates();
+  };
+
+  const handleRemoveAcceptedPlayer = async (eventId: string, playerName: string) => {
+    if (!currentUser) return;
+    const res = await MockDatabase.removeAcceptedPlayer(eventId, playerName);
+    if (res) {
+      showToast(`Removed player "${playerName}" from slot.`, 'info');
+    }
+    await syncLocalStates();
+  };
+
+  const handleToggleCustomSportEquipment = async (eventId: string, pickedUp: boolean) => {
+    if (!currentUser) return;
+    const res = await MockDatabase.toggleCustomSportEquipment(eventId, pickedUp);
+    if (res) {
+      showToast(
+        pickedUp ? 'Sport equipment checked out successfully.' : 'Sport equipment returned successfully.',
+        'success'
+      );
+    }
+    await syncLocalStates();
+  };
+
+  const handleDeleteCustomSport = async (eventId: string) => {
+    if (!currentUser) return;
+    const res = await MockDatabase.deleteCustomSport(eventId);
+    if (res) {
+      showToast('Custom sport match deleted successfully.', 'success');
+    }
+    await syncLocalStates();
   };
 
   const handleUpdatePreferences = async (prefs: string[]) => {
@@ -540,7 +659,7 @@ export default function App() {
   const activeBookingsCount = bookings.filter(b => b.userId === currentUser.id && b.status === 'Confirmed').length;
 
   return (
-    <div className="min-h-screen bg-[#0A0F1E] flex flex-col font-sans antialiased text-white selection:bg-blue-600/30 selection:text-blue-200">
+    <div className="h-screen bg-[#0A0F1E] flex flex-col font-sans antialiased text-white selection:bg-blue-600/30 selection:text-blue-200 overflow-hidden">
       
       {/* Navbar header */}
       <Navbar
@@ -593,6 +712,7 @@ export default function App() {
                 setActiveTab(tab);
               }}
               totalBookings={bookings.length}
+              onSearchChange={setSearchQuery}
             />
           )}
 
@@ -658,6 +778,63 @@ export default function App() {
               onQuickRebook={handleQuickRebook}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+            />
+          )}
+
+          {activeTab === 'ai-assistant' && (
+            <AiAssistantView
+              currentUser={currentUser}
+              facilities={facilities}
+              slots={slots}
+              onBookingSuccess={syncLocalStates}
+              showToast={showToast}
+            />
+          )}
+
+          {activeTab === 'custom-sport' && (
+            <CustomSportBookingView
+              currentUser={currentUser}
+              onBookingCreated={syncLocalStates}
+              showToast={showToast}
+              onNavigateToBoard={() => setActiveTab('community-board')}
+            />
+          )}
+
+          {activeTab === 'community-board' && (
+            <CommunityBoardView
+              currentUser={currentUser}
+              events={customSports}
+              onJoinMatch={handleJoinCustomMatch}
+              onCreateNewMatch={() => setActiveTab('custom-sport')}
+              joinRequests={joinRequests}
+              onSendJoinRequest={handleCreateJoinRequest}
+              onUpdateJoinRequestStatus={handleUpdateJoinRequestStatus}
+              onUpdateCustomSportControls={handleUpdateCustomSportControls}
+              onRemoveAcceptedPlayer={handleRemoveAcceptedPlayer}
+              onToggleEquipment={handleToggleCustomSportEquipment}
+              onDeleteEvent={handleDeleteCustomSport}
+              showToast={showToast}
+            />
+          )}
+
+          {activeTab === 'tournament' && (
+            <TournamentView
+              currentUser={currentUser}
+              tournaments={tournaments}
+              onRegisterTeam={handleRegisterTournament}
+              onUpdateMatchScore={handleUpdateTournamentScore}
+              onCreateTournament={handleCreateTournament}
+              showToast={showToast}
+            />
+          )}
+
+          {activeTab === 'admin-ai-insights' && (
+            <AdminAiInsightsView
+              currentUser={currentUser}
+              bookings={bookings}
+              facilities={facilities}
+              customSports={customSports}
+              tournaments={tournaments}
             />
           )}
 

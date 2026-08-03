@@ -204,3 +204,49 @@ alter table public.announcements enable row level security;
 drop policy if exists "Allow public access to announcements" on public.announcements;
 drop policy if exists "Allow public access to announcements" on announcements;
 create policy "Allow public access to announcements" on public.announcements for all using (true) with check (true);
+
+-- 9. CUSTOM SPORTS TABLE
+create table if not exists public.custom_sports (
+    id text primary key,
+    sport_name text not null,
+    date text not null,
+    time text not null,
+    duration text not null,
+    max_players integer not null,
+    joined_users text[] not null default '{}',
+    location text not null,
+    description text default '',
+    is_public boolean not null default true,
+    organizer_id text not null,
+    organizer_name text not null,
+    ai_suggested boolean not null default false,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.custom_sports enable row level security;
+drop policy if exists "Allow public access to custom_sports" on public.custom_sports;
+create policy "Allow public access to custom_sports" on public.custom_sports for all using (true) with check (true);
+
+-- 10. TOURNAMENTS TABLE
+create table if not exists public.tournaments (
+    id text primary key,
+    name text not null,
+    sport text not null,
+    format text not null,
+    type text not null,
+    max_participants integer not null,
+    registration_deadline text not null,
+    schedule_type text not null,
+    venue text not null,
+    prize text default '',
+    status text not null default 'Open',
+    created_by text not null,
+    registered_teams text[] not null default '{}',
+    matches jsonb not null default '[]',
+    points_table jsonb default '[]',
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+alter table public.tournaments enable row level security;
+drop policy if exists "Allow public access to tournaments" on public.tournaments;
+create policy "Allow public access to tournaments" on public.tournaments for all using (true) with check (true);

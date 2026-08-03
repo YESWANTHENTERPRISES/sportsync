@@ -13,7 +13,12 @@ import {
   convertTo24Hour,
   getISTDate,
   TIME_SLOTS,
-  INITIAL_FACILITIES
+  INITIAL_FACILITIES,
+  CustomSportBooking,
+  Tournament,
+  TournamentMatch,
+  RoundRobinPoints,
+  JoinRequest
 } from './mockDb';
 
 // --- DATABASE MAPPING UTILITIES ---
@@ -1026,5 +1031,724 @@ export class SupabaseDatabase {
       console.error('Failed to delete announcement:', error);
       throw new Error(`Failed to delete announcement: ${error.message}`);
     }
+  }
+
+  // --- CUSTOM SPORTS ---
+  static async getCustomSports(): Promise<CustomSportBooking[]> {
+    let dbCustomSports: CustomSportBooking[] = [];
+    try {
+      const { data, error } = await supabase.from('custom_sports').select('*').order('created_at', { ascending: false });
+      if (data && data.length > 0 && !error) {
+        dbCustomSports = data.map((row: any) => ({
+          id: row.id,
+          sportName: row.sport_name,
+          date: row.date,
+          time: row.time,
+          duration: row.duration,
+          maxPlayers: row.max_players,
+          joinedUsers: row.joined_users || [],
+          location: row.location,
+          description: row.description,
+          isPublic: row.is_public,
+          organizerId: row.organizer_id,
+          organizerName: row.organizer_name,
+          aiSuggested: row.ai_suggested,
+          createdAt: row.created_at,
+          sportEquipmentPickedUp: row.sport_equipment_picked_up,
+          stopAccepting: row.stop_accepting,
+          isFullOverride: row.is_full_override
+        }));
+      }
+    } catch (e) {}
+
+    // Fallback seed data
+    const SEED_CUSTOM_SPORTS: CustomSportBooking[] = [
+      {
+        id: 'evt-1',
+        sportName: 'Street Football',
+        date: getOffsetDateString(1),
+        time: '16:30',
+        duration: '1hr',
+        maxPlayers: 10,
+        joinedUsers: ['Abhishek Nair', 'Pooja Krishnan', 'Rahul Kumar', 'Sneha Paul'],
+        location: 'Open Ground near Hostel B',
+        description: 'Casual street football match. Bring sports shoes! All levels welcome.',
+        isPublic: true,
+        organizerId: 'usr-student1',
+        organizerName: 'Abhishek Nair',
+        aiSuggested: true,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'evt-2',
+        sportName: 'Kabaddi Match',
+        date: getOffsetDateString(2),
+        time: '17:00',
+        duration: '1.5hr',
+        maxPlayers: 14,
+        joinedUsers: ['YESWANTH', 'Vikram Singh', 'Pooja Krishnan'],
+        location: 'Main Field Area B',
+        description: 'Friendly Kabaddi match between hostels. High energy!',
+        isPublic: true,
+        organizerId: 'usr-admin',
+        organizerName: 'YESWANTH',
+        aiSuggested: false,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'evt-3',
+        sportName: 'Chess Blitz',
+        date: getOffsetDateString(1),
+        time: '15:00',
+        duration: '30min',
+        maxPlayers: 2,
+        joinedUsers: ['Pooja Krishnan'],
+        location: 'Indoor Recreation Zone Table 1',
+        description: 'Blitz chess challenge. 5 min clock.',
+        isPublic: true,
+        organizerId: 'usr-student2',
+        organizerName: 'Pooja Krishnan',
+        aiSuggested: false,
+        createdAt: new Date().toISOString()
+      }
+    ];
+
+    let localCustomSports: CustomSportBooking[] = [];
+    try {
+      const raw = localStorage.getItem('sportsync_custom_sports');
+      if (raw) {
+        localCustomSports = JSON.parse(raw);
+      } else {
+        localCustomSports = SEED_CUSTOM_SPORTS;
+        localStorage.setItem('sportsync_custom_sports', JSON.stringify(SEED_CUSTOM_SPORTS));
+      }
+    } catch (e) {
+      localCustomSports = SEED_CUSTOM_SPORTS;
+    }
+
+    const map = new Map<string, CustomSportBooking>();
+    localCustomSports.forEach(s => map.set(s.id, s));
+    dbCustomSports.forEach(s => map.set(s.id, s));
+
+    return Array.from(map.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  static async createCustomSport(sport: Omit<CustomSportBooking, 'id' | 'createdAt'>): Promise<CustomSportBooking> {
+    const newSport: CustomSportBooking = {
+      ...sport,
+      id: `evt-${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      await supabase.from('custom_sports').insert([{
+        id: newSport.id,
+        sport_name: newSport.sportName,
+        date: newSport.date,
+        time: newSport.time,
+        duration: newSport.duration,
+        max_players: newSport.maxPlayers,
+        joined_users: newSport.joinedUsers,
+        location: newSport.location,
+        description: newSport.description,
+        is_public: newSport.isPublic,
+        organizer_id: newSport.organizerId,
+        organizer_name: newSport.organizerName,
+        ai_suggested: newSport.aiSuggested,
+        created_at: newSport.createdAt
+      }]);
+    } catch (e) {}
+
+    try {
+      const list = await this.getCustomSports();
+      list.unshift(newSport);
+      localStorage.setItem('sportsync_custom_sports', JSON.stringify(list));
+    } catch (e) {}
+
+    await this.log(sport.organizerId, sport.organizerName, `Created custom sport event: ${sport.sportName}`, 'System', newSport.id);
+    return newSport;
+  }
+
+  static async joinCustomSport(sportId: string, userName: string, userId: string): Promise<{ success: boolean; message: string; sport?: CustomSportBooking }> {
+    let list = await this.getCustomSports();
+    const sportIdx = list.findIndex(s => s.id === sportId);
+    if (sportIdx === -1) return { success: false, message: 'Event not found' };
+
+    const sport = list[sportIdx];
+    if (sport.joinedUsers.includes(userName)) {
+      return { success: false, message: 'You have already joined this match!' };
+    }
+    if (sport.joinedUsers.length >= sport.maxPlayers) {
+      return { success: false, message: 'This match is already full!' };
+    }
+
+    sport.joinedUsers.push(userName);
+
+    try {
+      await supabase.from('custom_sports')
+        .update({ joined_users: sport.joinedUsers })
+        .eq('id', sportId);
+    } catch (e) {}
+
+    try {
+      list[sportIdx] = sport;
+      localStorage.setItem('sportsync_custom_sports', JSON.stringify(list));
+    } catch (e) {}
+
+    await this.log(userId, userName, `Joined custom match: ${sport.sportName}`, 'System', sportId);
+    return { success: true, message: `Successfully joined ${sport.sportName}!`, sport };
+  }
+
+  // --- JOIN REQUEST FLOW METHODS ---
+  static async getJoinRequests(): Promise<JoinRequest[]> {
+    let localRequests: JoinRequest[] = [];
+    try {
+      const raw = localStorage.getItem('sportsync_join_requests');
+      if (raw) {
+        localRequests = JSON.parse(raw);
+      } else {
+        // Seed some initial pending requests for demo (matches Page 15/16 seed events)
+        const seedReqs: JoinRequest[] = [
+          {
+            id: 'req-seed-1',
+            eventId: 'evt-2', // Kabaddi match (organizer is usr-admin / YESWANTH)
+            requesterId: 'usr-student1', // Abhishek Nair
+            requesterName: 'Abhishek Nair',
+            registrationId: '20BCE1022',
+            message: 'Hey, can I join? I play as defender/raider.',
+            status: 'Pending',
+            createdAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() // 2 hours duration
+          },
+          {
+            id: 'req-seed-2',
+            eventId: 'evt-2',
+            requesterId: 'usr-student2', // Pooja Krishnan
+            requesterName: 'Pooja Krishnan',
+            registrationId: '20BCE1045',
+            message: 'Hi, love Kabaddi! Let me join!',
+            status: 'Pending',
+            createdAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+          }
+        ];
+        localRequests = seedReqs;
+        localStorage.setItem('sportsync_join_requests', JSON.stringify(seedReqs));
+      }
+    } catch (e) {
+      localRequests = [];
+    }
+    
+    // Auto-expire requests that are pending and past expiresAt (2 hours expiration window)
+    const now = new Date();
+    let updated = false;
+    localRequests = localRequests.map(r => {
+      if (r.status === 'Pending' && new Date(r.expiresAt) < now) {
+        updated = true;
+        return { ...r, status: 'Expired' };
+      }
+      return r;
+    });
+    if (updated) {
+      localStorage.setItem('sportsync_join_requests', JSON.stringify(localRequests));
+    }
+
+    return localRequests;
+  }
+
+  static async createJoinRequest(req: Omit<JoinRequest, 'id' | 'createdAt' | 'expiresAt' | 'status'>): Promise<JoinRequest> {
+    const requests = await this.getJoinRequests();
+    const newReq: JoinRequest = {
+      ...req,
+      id: `req-${Date.now()}`,
+      status: 'Pending',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() // 2 hours limit
+    };
+    requests.push(newReq);
+    localStorage.setItem('sportsync_join_requests', JSON.stringify(requests));
+    
+    await this.log(req.requesterId, req.requesterName, `Submitted join request for custom sport event ID: ${req.eventId}`, 'User', newReq.id);
+    return newReq;
+  }
+
+  static async updateJoinRequestStatus(requestId: string, status: 'Accepted' | 'Declined'): Promise<{ success: boolean; message: string }> {
+    const requests = await this.getJoinRequests();
+    const reqIdx = requests.findIndex(r => r.id === requestId);
+    if (reqIdx === -1) return { success: false, message: 'Request not found.' };
+
+    const req = requests[reqIdx];
+    req.status = status;
+    requests[reqIdx] = req;
+    localStorage.setItem('sportsync_join_requests', JSON.stringify(requests));
+
+    // If accepted, add player to custom sport's joinedUsers list
+    if (status === 'Accepted') {
+      const sports = await this.getCustomSports();
+      const sportIdx = sports.findIndex(s => s.id === req.eventId);
+      if (sportIdx !== -1) {
+        const sport = sports[sportIdx];
+        if (!sport.joinedUsers.includes(req.requesterName)) {
+          sport.joinedUsers.push(req.requesterName);
+          // If players limit reached, auto toggle to full
+          if (sport.joinedUsers.length >= sport.maxPlayers) {
+            sport.isFullOverride = true;
+          }
+          sports[sportIdx] = sport;
+          localStorage.setItem('sportsync_custom_sports', JSON.stringify(sports));
+          
+          try {
+            await supabase.from('custom_sports').update({ joined_users: sport.joinedUsers }).eq('id', sport.id);
+          } catch(e) {}
+        }
+      }
+    }
+
+    return { success: true, message: `Request successfully ${status.toLowerCase()}!` };
+  }
+
+  static async updateCustomSportControls(eventId: string, stopAccepting: boolean, isFullOverride: boolean): Promise<boolean> {
+    const sports = await this.getCustomSports();
+    const idx = sports.findIndex(s => s.id === eventId);
+    if (idx === -1) return false;
+
+    sports[idx].stopAccepting = stopAccepting;
+    sports[idx].isFullOverride = isFullOverride;
+    localStorage.setItem('sportsync_custom_sports', JSON.stringify(sports));
+
+    try {
+      await supabase.from('custom_sports')
+        .update({ 
+          stop_accepting: stopAccepting, 
+          is_full_override: isFullOverride 
+        })
+        .eq('id', eventId);
+    } catch(e) {}
+
+    return true;
+  }
+
+  static async removeAcceptedPlayer(eventId: string, playerName: string): Promise<boolean> {
+    const sports = await this.getCustomSports();
+    const idx = sports.findIndex(s => s.id === eventId);
+    if (idx === -1) return false;
+
+    const sport = sports[idx];
+    sport.joinedUsers = sport.joinedUsers.filter(u => u !== playerName);
+    if (sport.joinedUsers.length < sport.maxPlayers) {
+      sport.isFullOverride = false;
+    }
+    sports[idx] = sport;
+    localStorage.setItem('sportsync_custom_sports', JSON.stringify(sports));
+
+    try {
+      await supabase.from('custom_sports')
+        .update({ joined_users: sport.joinedUsers })
+        .eq('id', eventId);
+    } catch(e) {}
+
+    return true;
+  }
+
+  static async toggleCustomSportEquipment(eventId: string, pickedUp: boolean): Promise<boolean> {
+    const sports = await this.getCustomSports();
+    const idx = sports.findIndex(s => s.id === eventId);
+    if (idx === -1) return false;
+
+    sports[idx].sportEquipmentPickedUp = pickedUp;
+    localStorage.setItem('sportsync_custom_sports', JSON.stringify(sports));
+
+    try {
+      await supabase.from('custom_sports')
+        .update({ sport_equipment_picked_up: pickedUp })
+        .eq('id', eventId);
+    } catch(e) {}
+
+    return true;
+  }
+
+  static async deleteCustomSport(eventId: string): Promise<boolean> {
+    const sports = await this.getCustomSports();
+    const filtered = sports.filter(s => s.id !== eventId);
+    localStorage.setItem('sportsync_custom_sports', JSON.stringify(filtered));
+
+    try {
+      await supabase.from('custom_sports')
+        .delete()
+        .eq('id', eventId);
+    } catch(e) {}
+
+    return true;
+  }
+
+  // --- TOURNAMENTS ---
+  static async getTournaments(): Promise<Tournament[]> {
+    let dbTournaments: Tournament[] = [];
+    try {
+      const { data, error } = await supabase.from('tournaments').select('*').order('created_at', { ascending: false });
+      if (data && data.length > 0 && !error) {
+        dbTournaments = data.map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          sport: row.sport,
+          format: row.format,
+          type: row.type,
+          maxParticipants: row.max_participants,
+          registrationDeadline: row.registration_deadline,
+          scheduleType: row.schedule_type,
+          venue: row.venue,
+          prize: row.prize,
+          status: row.status,
+          createdBy: row.created_by,
+          registeredTeams: row.registered_teams || [],
+          matches: row.matches || [],
+          pointsTable: row.points_table,
+          createdAt: row.created_at
+        }));
+      }
+    } catch (e) {}
+
+    const SEED_TOURNAMENTS: Tournament[] = [
+      {
+        id: 'trn-1',
+        name: 'Monsoon Badminton Clash',
+        sport: 'Badminton',
+        format: 'Knockout',
+        type: 'Team',
+        maxParticipants: 8,
+        registrationDeadline: getOffsetDateString(-2),
+        scheduleType: 'Auto-generate',
+        venue: 'MG Indoor Badminton Court 2',
+        prize: 'Trophy + Certificate + 500 RP Bonus',
+        status: 'Ongoing',
+        createdBy: 'YESWANTH',
+        registeredTeams: ['Team Alpha', 'Team Nova', 'Team Gamma', 'Team Delta', 'Team Epsilon', 'Team Zeta', 'Team Eta', 'Team Theta'],
+        matches: [
+          // Round 1 (QF)
+          {
+            id: 'trn-1-m1',
+            round: 1,
+            team1: 'Team Alpha',
+            team2: 'Team Nova',
+            status: 'Scheduled',
+            nextMatchId: 'trn-1-sf1',
+            date: '2026-08-06',
+            venue: 'MG Indoor Badminton Court 2'
+          },
+          {
+            id: 'trn-1-m2',
+            round: 1,
+            team1: 'Team Gamma',
+            team2: 'Team Delta',
+            score1: 15,
+            score2: 8,
+            winner: 'Team Gamma',
+            status: 'Completed',
+            nextMatchId: 'trn-1-sf1',
+            date: getOffsetDateString(-1),
+            venue: 'MG Indoor Badminton Court 3',
+            aiSummary: 'Team Gamma surged ahead in the second half, winning 15-8.'
+          },
+          {
+            id: 'trn-1-m3',
+            round: 1,
+            team1: 'Team Epsilon',
+            team2: 'Team Zeta',
+            score1: 15,
+            score2: 12,
+            winner: 'Team Epsilon',
+            status: 'Completed',
+            nextMatchId: 'trn-1-sf2',
+            date: getOffsetDateString(-1),
+            venue: 'MG Indoor Badminton Court 4',
+            aiSummary: 'Team Epsilon secure SF slot after defeating Zeta 15-12.'
+          },
+          {
+            id: 'trn-1-m4',
+            round: 1,
+            team1: 'Team Eta',
+            team2: 'Team Theta',
+            score1: 15,
+            score2: 9,
+            winner: 'Team Eta',
+            status: 'Completed',
+            nextMatchId: 'trn-1-sf2',
+            date: getOffsetDateString(-1),
+            venue: 'MG Indoor Badminton Court 1',
+            aiSummary: 'Team Eta dominates the match, beating Team Theta 15-9.'
+          },
+          {
+            id: 'trn-1-sf1',
+            round: 2,
+            team1: 'Winner of QF1',
+            team2: 'Team Gamma',
+            status: 'Scheduled',
+            nextMatchId: 'trn-1-final',
+            venue: 'MG Indoor Badminton Court 2'
+          },
+          {
+            id: 'trn-1-sf2',
+            round: 2,
+            team1: 'Team Epsilon',
+            team2: 'Team Eta',
+            status: 'Scheduled',
+            nextMatchId: 'trn-1-final',
+            venue: 'MG Indoor Badminton Court 3'
+          },
+          {
+            id: 'trn-1-final',
+            round: 3,
+            team1: 'Winner of SF1',
+            team2: 'Winner of SF2',
+            status: 'Scheduled',
+            venue: 'MG Indoor Badminton Court 1'
+          }
+        ],
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'trn-2',
+        name: 'Inter-Department Cricket League',
+        sport: 'Cricket',
+        format: 'Round Robin',
+        type: 'Team',
+        maxParticipants: 16,
+        registrationDeadline: getOffsetDateString(4),
+        scheduleType: 'Manual',
+        venue: 'Main Cricket Oval',
+        prize: 'Championship Trophy + Cash Prize ₹10,000',
+        status: 'Open',
+        createdBy: 'YESWANTH',
+        registeredTeams: ['CSE Strikers', 'ECE Blasters', 'Mech Warriors', 'Bio Giants'],
+        matches: [],
+        pointsTable: [
+          { team: 'CSE Strikers', played: 2, won: 2, lost: 0, points: 6 },
+          { team: 'ECE Blasters', played: 2, won: 1, lost: 1, points: 3 },
+          { team: 'Mech Warriors', played: 2, won: 1, lost: 1, points: 3 },
+          { team: 'Bio Giants', played: 2, won: 0, lost: 2, points: 0 }
+        ],
+        createdAt: new Date().toISOString()
+      }
+    ];
+
+    let localTournaments: Tournament[] = [];
+    try {
+      const raw = localStorage.getItem('sportsync_tournaments');
+      if (raw) {
+        localTournaments = JSON.parse(raw);
+      } else {
+        localTournaments = SEED_TOURNAMENTS;
+        localStorage.setItem('sportsync_tournaments', JSON.stringify(SEED_TOURNAMENTS));
+      }
+    } catch (e) {
+      localTournaments = SEED_TOURNAMENTS;
+    }
+
+    const map = new Map<string, Tournament>();
+    localTournaments.forEach(t => map.set(t.id, t));
+    dbTournaments.forEach(t => map.set(t.id, t));
+
+    return Array.from(map.values()).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  static async createTournament(tournament: Omit<Tournament, 'id' | 'createdAt' | 'matches' | 'registeredTeams' | 'status'>): Promise<Tournament> {
+    const newTournament: Tournament = {
+      ...tournament,
+      id: `trn-${Date.now()}`,
+      status: 'Open',
+      registeredTeams: [],
+      matches: [],
+      createdAt: new Date().toISOString()
+    };
+
+    if (newTournament.format === 'Knockout') {
+      const matches: TournamentMatch[] = [];
+      const numParticipants = Number(newTournament.maxParticipants) || 8;
+      const numQf = numParticipants / 2;
+      
+      for (let i = 1; i <= numQf; i++) {
+        matches.push({
+          id: `${newTournament.id}-qf-${i}`,
+          round: 1,
+          team1: `TBD Team ${2 * i - 1}`,
+          team2: `TBD Team ${2 * i}`,
+          status: 'Scheduled',
+          nextMatchId: `${newTournament.id}-sf-${Math.ceil(i / 2)}`
+        });
+      }
+
+      const numSf = numQf / 2;
+      for (let i = 1; i <= numSf; i++) {
+        matches.push({
+          id: `${newTournament.id}-sf-${i}`,
+          round: 2,
+          team1: `Winner QF ${2 * i - 1}`,
+          team2: `Winner QF ${2 * i}`,
+          status: 'Scheduled',
+          nextMatchId: `${newTournament.id}-final`
+        });
+      }
+
+      matches.push({
+        id: `${newTournament.id}-final`,
+        round: 3,
+        team1: `Winner SF 1`,
+        team2: `Winner SF 2`,
+        status: 'Scheduled'
+      });
+
+      newTournament.matches = matches;
+    } else {
+      newTournament.pointsTable = [];
+    }
+
+    try {
+      await supabase.from('tournaments').insert([{
+        id: newTournament.id,
+        name: newTournament.name,
+        sport: newTournament.sport,
+        format: newTournament.format,
+        type: newTournament.type,
+        max_participants: newTournament.maxParticipants,
+        registration_deadline: newTournament.registrationDeadline,
+        schedule_type: newTournament.scheduleType,
+        venue: newTournament.venue,
+        prize: newTournament.prize,
+        status: newTournament.status,
+        created_by: newTournament.createdBy,
+        registered_teams: newTournament.registeredTeams,
+        matches: newTournament.matches,
+        points_table: newTournament.pointsTable,
+        created_at: newTournament.createdAt
+      }]);
+    } catch (e) {}
+
+    try {
+      const list = await this.getTournaments();
+      list.unshift(newTournament);
+      localStorage.setItem('sportsync_tournaments', JSON.stringify(list));
+    } catch (e) {}
+
+    await this.log('System', tournament.createdBy, `Created tournament: ${tournament.name}`, 'System', newTournament.id);
+    return newTournament;
+  }
+
+  static async registerForTournament(tournamentId: string, teamName: string, userId: string, userName: string): Promise<{ success: boolean; message: string; tournament?: Tournament }> {
+    let list = await this.getTournaments();
+    const idx = list.findIndex(t => t.id === tournamentId);
+    if (idx === -1) return { success: false, message: 'Tournament not found' };
+
+    const tournament = list[idx];
+    if (tournament.registeredTeams.includes(teamName)) {
+      return { success: false, message: 'Team/player already registered!' };
+    }
+    if (tournament.registeredTeams.length >= tournament.maxParticipants) {
+      return { success: false, message: 'Tournament registrations are full!' };
+    }
+
+    tournament.registeredTeams.push(teamName);
+
+    if (tournament.registeredTeams.length === tournament.maxParticipants) {
+      tournament.status = 'Ongoing';
+      if (tournament.format === 'Knockout') {
+        const teams = [...tournament.registeredTeams];
+        tournament.matches.forEach(m => {
+          if (m.round === 1) {
+            const matchIdStr = m.id.split('-').pop() || '';
+            const matchIndex = parseInt(matchIdStr.replace(/[^0-9]/g, '')) || 1;
+            m.team1 = teams[2 * matchIndex - 2] || 'TBD Team';
+            m.team2 = teams[2 * matchIndex - 1] || 'TBD Team';
+            m.date = getOffsetDateString(2);
+            m.venue = tournament.venue;
+          }
+        });
+      } else {
+        tournament.pointsTable = tournament.registeredTeams.map(t => ({
+          team: t, played: 0, won: 0, lost: 0, points: 0
+        }));
+      }
+    }
+
+    try {
+      await supabase.from('tournaments')
+        .update({
+          registered_teams: tournament.registeredTeams,
+          status: tournament.status,
+          matches: tournament.matches,
+          points_table: tournament.pointsTable
+        })
+        .eq('id', tournamentId);
+    } catch (e) {}
+
+    try {
+      list[idx] = tournament;
+      localStorage.setItem('sportsync_tournaments', JSON.stringify(list));
+    } catch (e) {}
+
+    await this.log(userId, userName, `Registered "${teamName}" for tournament: ${tournament.name}`, 'System', tournamentId);
+    return { success: true, message: `Successfully registered "${teamName}"!`, tournament };
+  }
+
+  static async updateTournamentMatchScore(
+    tournamentId: string, 
+    matchId: string, 
+    score1: number, 
+    score2: number, 
+    aiSummary: string,
+    userId: string,
+    userName: string
+  ): Promise<{ success: boolean; message: string; tournament?: Tournament }> {
+    let list = await this.getTournaments();
+    const trnIdx = list.findIndex(t => t.id === tournamentId);
+    if (trnIdx === -1) return { success: false, message: 'Tournament not found' };
+
+    const tournament = list[trnIdx];
+    const matchIdx = tournament.matches.findIndex(m => m.id === matchId);
+    if (matchIdx === -1) return { success: false, message: 'Match not found' };
+
+    const match = tournament.matches[matchIdx];
+    match.score1 = score1;
+    match.score2 = score2;
+    match.status = 'Completed';
+    match.aiSummary = aiSummary;
+    const winner = score1 > score2 ? match.team1 : match.team2;
+    match.winner = winner;
+
+    if (tournament.format === 'Knockout' && match.nextMatchId) {
+      const nextMatchIdx = tournament.matches.findIndex(m => m.id === match.nextMatchId);
+      if (nextMatchIdx !== -1) {
+        const nextMatch = tournament.matches[nextMatchIdx];
+        const matchIdStr = match.id.split('-').pop() || '';
+        const matchIndex = parseInt(matchIdStr.replace(/[^0-9]/g, '')) || 1;
+        
+        if (matchIndex % 2 === 1) {
+          nextMatch.team1 = winner;
+        } else {
+          nextMatch.team2 = winner;
+        }
+      }
+    }
+
+    const finalMatch = tournament.matches.find(m => m.round === 3 || m.id.includes('final'));
+    if (finalMatch && finalMatch.status === 'Completed') {
+      tournament.status = 'Completed';
+    }
+
+    try {
+      await supabase.from('tournaments')
+        .update({
+          matches: tournament.matches,
+          status: tournament.status
+        })
+        .eq('id', tournamentId);
+    } catch (e) {}
+
+    try {
+      list[trnIdx] = tournament;
+      localStorage.setItem('sportsync_tournaments', JSON.stringify(list));
+    } catch (e) {}
+
+    await this.log(userId, userName, `Recorded score for match ${matchId} in ${tournament.name} (${score1}-${score2})`, 'System', tournamentId);
+    return { success: true, message: 'Match scores updated successfully!', tournament };
   }
 }

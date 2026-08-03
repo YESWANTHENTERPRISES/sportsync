@@ -40,6 +40,8 @@ We configured a `.env` file containing your Supabase project properties in the p
    - Snake-case (database) to camel-case (TypeScript) mappings.
    - User authentication and ban verification.
    - Dynamic slots status modifications, bulk generation, and outdoor bulk weather cancellation algorithms.
+   - **White Modal Overlays & Table Containers**: Updated all modal boxes (Registration, Score entry, and Create tournament) and table/bracket workspace cards (Leaderboard standings table, Knockout Bracket tree, and Standings points table) to use stark white background templates, fixing visibility issues where navy text was overlaying dark backgrounds.
+   - **Knockout Bracket High-Contrast Upgrades**: Redesigned the visual bracket match cards to utilize a clean light-mode layout with a left vertical status accent bar (emerald for completed matches, pulsing blue for scheduled matches). The winning team is highlighted with a gold trophy icon (🏆) and bold navy text, the losing team is clearly muted/struck-through, and the score displays are wrapped in distinct background pills.
    - Concurrent bookings increment, double-booking checking, and daily slot booking quotas.
    - Waitlist priority entry addition and automatic booking promotions.
    - GDPR logs purging.

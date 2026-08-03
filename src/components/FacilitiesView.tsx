@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Layers, Users, Calendar, Sparkles, Filter, RefreshCw } from 'lucide-react';
 import { SportFacility, FacilitySlot, Booking, convertTo24Hour } from '../utils/mockDb';
 
@@ -26,6 +26,35 @@ export const FacilitiesView: React.FC<FacilitiesViewProps> = ({
   const [selectedSport, setSelectedSport] = useState<string>('ALL');
   const [timeOfDay, setTimeOfDay] = useState<string>('ALL'); // ALL, Morning, Afternoon, Evening
   const [onlyAvailable, setOnlyAvailable] = useState<boolean>(false);
+
+  // Synchronize incoming search queries that match a sport category
+  useEffect(() => {
+    if (searchQuery) {
+      const sportCategories = [
+        'Badminton', 
+        'Cricket', 
+        'Basketball', 
+        'Football', 
+        'Tennis', 
+        'Volley Ball', 
+        'Table Tennis', 
+        'Shuttlecock', 
+        'Handball', 
+        'Chess', 
+        'Carrom', 
+        'Throw Ball'
+      ];
+      
+      const matchedSport = sportCategories.find(
+        s => s.toLowerCase() === searchQuery.toLowerCase()
+      );
+
+      if (matchedSport) {
+        setSelectedSport(matchedSport);
+        onSearchChange('');
+      }
+    }
+  }, [searchQuery, onSearchChange]);
 
   // Get previously booked facilities for Quick Rebook
   const userBookings = bookings.filter(b => b.userId === currentUserId && b.status === 'Confirmed');
@@ -102,7 +131,7 @@ export const FacilitiesView: React.FC<FacilitiesViewProps> = ({
 
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Sidebar Filters */}
-        <aside className="w-full lg:w-64 shrink-0 bg-[#1E2640] border border-slate-800 rounded-2xl p-5 space-y-6 h-fit">
+        <aside className="w-full lg:w-64 shrink-0 bg-[#1E2640] border border-slate-800 rounded-2xl p-5 space-y-6 lg:sticky lg:top-6 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
           <div className="flex items-center gap-2 text-sm font-heading font-bold text-white border-b border-slate-850 pb-3">
             <Filter className="w-4 h-4 text-blue-400" />
             Filter Facilities

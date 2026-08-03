@@ -92,6 +92,83 @@ export interface AuditLog {
   timestamp: string;
 }
 
+export interface CustomSportBooking {
+  id: string;
+  sportName: string;
+  date: string;
+  time: string;
+  duration: string;
+  maxPlayers: number;
+  joinedUsers: string[]; // usernames/collegeId values
+  location: string;
+  description?: string;
+  isPublic: boolean;
+  organizerId: string;
+  organizerName: string;
+  aiSuggested: boolean;
+  createdAt: string;
+  sharePhoneConsent?: boolean;
+  organizerPhone?: string;
+  stopAccepting?: boolean;
+  isFullOverride?: boolean;
+  sportEquipmentPickedUp?: boolean;
+}
+
+export interface JoinRequest {
+  id: string;
+  eventId: string;
+  requesterId: string;
+  requesterName: string;
+  requesterAvatar?: string;
+  registrationId: string;
+  message?: string;
+  status: 'Pending' | 'Accepted' | 'Declined' | 'Expired';
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface TournamentMatch {
+  id: string;
+  round: number; // 1 = QF (8 teams), 2 = SF (4 teams), 3 = Finals (2 teams)
+  team1: string;
+  team2: string;
+  score1?: number;
+  score2?: number;
+  winner?: string;
+  status: 'Scheduled' | 'Completed';
+  nextMatchId?: string; // id of the match winner advances to
+  date?: string;
+  venue?: string;
+  aiSummary?: string;
+}
+
+export interface RoundRobinPoints {
+  team: string;
+  played: number;
+  won: number;
+  lost: number;
+  points: number;
+}
+
+export interface Tournament {
+  id: string;
+  name: string;
+  sport: string;
+  format: 'Knockout' | 'Round Robin' | 'League';
+  type: 'Team' | 'Individual';
+  maxParticipants: number;
+  registrationDeadline: string;
+  scheduleType: 'Auto-generate' | 'Manual';
+  venue: string;
+  prize?: string;
+  status: 'Open' | 'Ongoing' | 'Completed';
+  createdBy: string;
+  registeredTeams: string[];
+  matches: TournamentMatch[];
+  pointsTable?: RoundRobinPoints[];
+  createdAt: string;
+}
+
 // Config variables managed by admin
 export interface AdminConfig {
   maxBookingsPerUserPerDay: number;
